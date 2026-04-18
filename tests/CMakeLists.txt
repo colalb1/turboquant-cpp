@@ -10,6 +10,7 @@ add_executable(turboquant_tests
     unit/test_quantizer_prod.cpp
     unit/test_neon_kernels.cpp
     unit/test_value_quant.cpp
+    unit/test_kv_cache.cpp
 )
 
 target_link_libraries(turboquant_tests
