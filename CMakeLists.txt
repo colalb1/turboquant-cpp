@@ -99,6 +99,7 @@ add_library(turboquant_core STATIC
     src/ring_buffer.cpp
     src/compressed_kv_store.cpp
     src/kv_capture.cpp
+    src/score.cpp
     "${TURBOQUANT_EMBEDDED_CODEBOOKS}"
 )
 
@@ -149,6 +150,7 @@ set(TURBOQUANT_CODEC_TUS
     src/ring_buffer.cpp
     src/compressed_kv_store.cpp
     src/kv_capture.cpp
+    src/score.cpp
 )
 set_source_files_properties(${TURBOQUANT_CODEC_TUS}
     PROPERTIES COMPILE_OPTIONS "-fno-exceptions;-fno-rtti")
