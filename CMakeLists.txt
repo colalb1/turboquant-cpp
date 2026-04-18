@@ -94,6 +94,7 @@ add_library(turboquant_core STATIC
     src/codebook_loader.cpp
     src/codebook_lloyd_max.cpp
     src/quantizer_mse.cpp
+    src/quantizer_prod.cpp
     "${TURBOQUANT_EMBEDDED_CODEBOOKS}"
 )
 
@@ -139,6 +140,7 @@ set(TURBOQUANT_CODEC_TUS
     src/codebook_loader.cpp
     src/codebook_lloyd_max.cpp
     src/quantizer_mse.cpp
+    src/quantizer_prod.cpp
 )
 set_source_files_properties(${TURBOQUANT_CODEC_TUS}
     PROPERTIES COMPILE_OPTIONS "-fno-exceptions;-fno-rtti")
