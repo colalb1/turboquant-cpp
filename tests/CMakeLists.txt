@@ -4,6 +4,10 @@ add_executable(turboquant_tests
     unit/test_rotation.cpp
     unit/test_codebook.cpp
     unit/test_lloyd_max.cpp
+    unit/test_pack_policy.cpp
+    unit/test_quantizer_mse.cpp
+    unit/test_qjl_signs.cpp
+    unit/test_quantizer_prod.cpp
 )
 
 target_link_libraries(turboquant_tests
