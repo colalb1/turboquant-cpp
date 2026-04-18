@@ -72,6 +72,7 @@ class Result {
 
     constexpr T&       operator*() &       noexcept { return value_; }
     constexpr const T& operator*() const & noexcept { return value_; }
+    constexpr T&&      operator*() &&      noexcept { return static_cast<T&&>(value_); }
 
     constexpr T*       operator->()       noexcept { return &value_; }
     constexpr const T* operator->() const noexcept { return &value_; }
