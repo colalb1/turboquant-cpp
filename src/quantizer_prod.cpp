@@ -6,6 +6,7 @@
 // Python reference: turboquant/quantizer.py:172-306.
 
 #include "turboquant/quantizer_prod.hpp"
+#include "turboquant/neon/kernels.hpp"
 
 #include <cmath>
 #include <cstddef>
@@ -203,10 +204,9 @@ Error TurboQuantProd<Bits, Arch>::quantize(std::span<const float>  x,
     }
 #endif
 
-    // Pack signs row-by-row.
     for (std::size_t b = 0; b < batch; ++b) {
-        QJLPack::pack(projected.data() + b * d, d,
-                      qjl_signs_out.data() + b * qb);
+        neon::qjl_pack_signs(projected.data() + b * d, d,
+                             qjl_signs_out.data() + b * qb);
     }
 
     return Error::Ok;
@@ -247,8 +247,8 @@ Error TurboQuantProd<Bits, Arch>::dequantize(std::span<const std::uint8_t> mse_i
     if (!qjl_contrib.resize(batch * d)) return Error::RotationFailed;
 
     for (std::size_t b = 0; b < batch; ++b) {
-        QJLPack::unpack_pm1(qjl_signs.data() + b * qb, d,
-                            signs.data() + b * d);
+        neon::qjl_unpack_pm1(qjl_signs.data() + b * qb, d,
+                             signs.data() + b * d);
     }
 
     // qjl_contrib = signs @ S  (row-major: (batch, d) = (batch, d) * (d, d))
@@ -322,8 +322,8 @@ Error TurboQuantProd<Bits, Arch>::attention_score(
     AlignedBuffer<float> signs;
     if (!signs.resize(n_k * d)) return Error::RotationFailed;
     for (std::size_t k = 0; k < n_k; ++k) {
-        QJLPack::unpack_pm1(key_qjl_signs.data() + k * qb, d,
-                            signs.data() + k * d);
+        neon::qjl_unpack_pm1(key_qjl_signs.data() + k * qb, d,
+                             signs.data() + k * d);
     }
 
     // 3. Sketch queries: q_sketched = query @ S.T   (n_q × d)
