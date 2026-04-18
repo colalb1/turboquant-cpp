@@ -77,46 +77,72 @@ TEST_CASE("TurboQuantProd: quantize is deterministic for fixed seed",
     }
 }
 
-TEST_CASE("TurboQuantProd<3> round-trip reduces error vs MSE-only",
+TEST_CASE("TurboQuantProd<3> inner-product estimate beats MSE-only",
           "[quantizer][prod]") {
-    const std::size_t d = 128, batch = 4;
-    const auto x = make_signal(batch * d, 7);
+    // Prod is designed to reduce INNER-PRODUCT estimation error, not
+    // reconstruction MSE. Compare |<q, k> - <q, k_hat>|^2 averaged over
+    // many random (q, k) pairs.
+    const std::size_t d   = 128;
+    const std::size_t n_q = 32;
+    const std::size_t n_k = 32;
 
     auto prod = tq::TurboQuantProd<3>::make(d, 42);
     REQUIRE(prod.has_value());
+    auto mse  = tq::TurboQuantMSE<2>::make(d, 42);  // Prod's internal MSE budget
+    REQUIRE(mse.has_value());
 
+    const auto query = make_signal(n_q * d, 11);
+    const auto keys  = make_signal(n_k * d, 22);
+
+    // True scores.
+    std::vector<float> true_scores(n_q * n_k);
+    for (std::size_t q = 0; q < n_q; ++q) {
+        for (std::size_t k = 0; k < n_k; ++k) {
+            double acc = 0.0;
+            for (std::size_t i = 0; i < d; ++i) {
+                acc += static_cast<double>(query[q * d + i]) *
+                       static_cast<double>(keys[k * d + i]);
+            }
+            true_scores[q * n_k + k] = static_cast<float>(acc);
+        }
+    }
+
+    // Prod scores via attention_score.
     const std::size_t mb = tq::TurboQuantProd<3>::mse_packed_bytes(d);
     const std::size_t qb = tq::TurboQuantProd<3>::qjl_packed_bytes(d);
-    std::vector<std::uint8_t> mse_idx(batch * mb), signs(batch * qb);
-    std::vector<float>        res(batch), norms(batch);
-    std::vector<float>        x_hat(batch * d);
+    std::vector<std::uint8_t> mi(n_k * mb), si(n_k * qb);
+    std::vector<float>        res(n_k), norms(n_k);
+    REQUIRE(prod->quantize(keys, n_k, mi, si, res, norms) == tq::Error::Ok);
+    std::vector<float> prod_scores(n_q * n_k);
+    REQUIRE(prod->attention_score(query, n_q, mi, si, res, norms, n_k, prod_scores)
+            == tq::Error::Ok);
 
-    REQUIRE(prod->quantize(x, batch, mse_idx, signs, res, norms) == tq::Error::Ok);
-    REQUIRE(prod->dequantize(mse_idx, signs, res, norms, batch, x_hat) == tq::Error::Ok);
-
-    // Compute prod reconstruction MSE and compare against MSE-only (bits-1=2 bits).
-    double sse_prod = 0.0;
-    for (std::size_t i = 0; i < x.size(); ++i) {
-        const double d_ = static_cast<double>(x[i]) - static_cast<double>(x_hat[i]);
-        sse_prod += d_ * d_;
+    // MSE-only scores: <query, k_mse_hat>.
+    std::vector<std::uint8_t> mi2(n_k * mb);
+    std::vector<float>        n2(n_k), k_hat(n_k * d);
+    REQUIRE(mse->quantize(keys, n_k, mi2, n2)           == tq::Error::Ok);
+    REQUIRE(mse->dequantize(mi2, n2, n_k, k_hat)        == tq::Error::Ok);
+    std::vector<float> mse_scores(n_q * n_k);
+    for (std::size_t q = 0; q < n_q; ++q) {
+        for (std::size_t k = 0; k < n_k; ++k) {
+            double acc = 0.0;
+            for (std::size_t i = 0; i < d; ++i) {
+                acc += static_cast<double>(query[q * d + i]) *
+                       static_cast<double>(k_hat[k * d + i]);
+            }
+            mse_scores[q * n_k + k] = static_cast<float>(acc);
+        }
     }
 
-    // MSE-only at (bits-1)=2 bits:
-    auto mse = tq::TurboQuantMSE<2>::make(d, 42);
-    REQUIRE(mse.has_value());
-    std::vector<std::uint8_t> mse_idx2(batch * mb);
-    std::vector<float>        nrm2(batch), x_hat2(batch * d);
-    REQUIRE(mse->quantize(x, batch, mse_idx2, nrm2) == tq::Error::Ok);
-    REQUIRE(mse->dequantize(mse_idx2, nrm2, batch, x_hat2) == tq::Error::Ok);
-
-    double sse_mse_only = 0.0;
-    for (std::size_t i = 0; i < x.size(); ++i) {
-        const double d_ = static_cast<double>(x[i]) - static_cast<double>(x_hat2[i]);
-        sse_mse_only += d_ * d_;
+    double err_prod = 0.0, err_mse = 0.0;
+    for (std::size_t i = 0; i < true_scores.size(); ++i) {
+        const double dp = prod_scores[i] - true_scores[i];
+        const double dm = mse_scores[i]  - true_scores[i];
+        err_prod += dp * dp;
+        err_mse  += dm * dm;
     }
-
-    CAPTURE(sse_prod, sse_mse_only);
-    REQUIRE(sse_prod < sse_mse_only);
+    CAPTURE(err_prod, err_mse);
+    REQUIRE(err_prod < err_mse);
 }
 
 TEST_CASE("TurboQuantProd::attention_score matches brute-force on unbiased estimator",
