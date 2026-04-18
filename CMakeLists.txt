@@ -96,6 +96,9 @@ add_library(turboquant_core STATIC
     src/quantizer_mse.cpp
     src/quantizer_prod.cpp
     src/value_quant.cpp
+    src/ring_buffer.cpp
+    src/compressed_kv_store.cpp
+    src/kv_capture.cpp
     "${TURBOQUANT_EMBEDDED_CODEBOOKS}"
 )
 
@@ -143,6 +146,9 @@ set(TURBOQUANT_CODEC_TUS
     src/quantizer_mse.cpp
     src/quantizer_prod.cpp
     src/value_quant.cpp
+    src/ring_buffer.cpp
+    src/compressed_kv_store.cpp
+    src/kv_capture.cpp
 )
 set_source_files_properties(${TURBOQUANT_CODEC_TUS}
     PROPERTIES COMPILE_OPTIONS "-fno-exceptions;-fno-rtti")
