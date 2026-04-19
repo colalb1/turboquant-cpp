@@ -8,71 +8,27 @@
 #include "turboquant/quantizer_prod.hpp"
 #include "turboquant/neon/kernels.hpp"
 
+#include "internal/gaussian_rng.hpp"
+
 #include <cmath>
 #include <cstddef>
 #include <cstring>
-#include <random>
 
-#if defined(__APPLE__)
 #define ACCELERATE_NEW_LAPACK   1
 #define ACCELERATE_LAPACK_ILP64 0
 #include <Accelerate/Accelerate.h>
-#endif
 
 namespace tq {
 
 namespace {
 
-// Marsaglia polar method — shared shape with rotation_accelerate.cpp. We
-// duplicate it rather than expose a public symbol because both TUs are
-// compiled with -fno-exceptions and we want the inliner to see it whole.
-inline void next_pair(std::mt19937_64& eng, float& a, float& b) noexcept {
-    std::uniform_real_distribution<float> u(-1.0f, 1.0f);
-    float                                 u1, u2, s;
-    do {
-        u1 = u(eng);
-        u2 = u(eng);
-        s  = u1 * u1 + u2 * u2;
-    } while (s >= 1.0f || s == 0.0f);
-    const float f = std::sqrt(-2.0f * std::log(s) / s);
-    a             = u1 * f;
-    b             = u2 * f;
-}
-
-void fill_gaussian(float* out, std::size_t n, std::uint32_t seed) noexcept {
-    std::mt19937_64 eng(static_cast<std::uint64_t>(seed));
-    std::size_t     i = 0;
-    while (i + 1 < n) {
-        next_pair(eng, out[i], out[i + 1]);
-        i += 2;
-    }
-    if (i < n) {
-        float a, b;
-        next_pair(eng, a, b);
-        out[i] = a;
-    }
-}
+using internal::fill_gaussian;
 
 inline float qjl_scale_for_dim(std::size_t d) noexcept {
     // Python: math.sqrt(math.pi / 2.0) / dim  (quantizer.py:212)
     const double s = std::sqrt(M_PI / 2.0) / static_cast<double>(d);
     return static_cast<float>(s);
 }
-
-#if !defined(__APPLE__)
-// y = A * x  (A is row-major d×d, x is d, y is d). Non-Apple fallback path
-// only — Apple always uses cblas_sgemm.
-inline void gemv_rowmajor(const float* A, const float* x, float* y, std::size_t d,
-                          bool accumulate) noexcept {
-    for (std::size_t i = 0; i < d; ++i) {
-        const float* row = A + i * d;
-        float        acc = 0.0f;
-        for (std::size_t j = 0; j < d; ++j)
-            acc += row[j] * x[j];
-        y[i] = accumulate ? y[i] + acc : acc;
-    }
-}
-#endif  // !__APPLE__
 
 }  // namespace
 
@@ -145,26 +101,28 @@ Error TurboQuantProd<Bits, Arch>::quantize(std::span<const float> x, std::size_t
     if (mse_err != Error::Ok) return mse_err;
 
     // Stage 2: reconstruct MSE, compute residual, project, pack signs.
-    AlignedBuffer<float> x_mse;
-    AlignedBuffer<float> residual;
-    AlignedBuffer<float> projected;
-    if (!x_mse.resize(batch * d)) return Error::RotationFailed;
-    if (!residual.resize(batch * d)) return Error::RotationFailed;
-    if (!projected.resize(batch * d)) return Error::RotationFailed;
+    const std::size_t n = batch * d;
+    if (!scratch_a_.ensure_size(n)) return Error::RotationFailed;  // x_mse
+    if (!scratch_b_.ensure_size(n)) return Error::RotationFailed;  // residual
+    if (!scratch_c_.ensure_size(n)) return Error::RotationFailed;  // projected
 
-    const Error dq_err = mse_.dequantize(mse_indices_out, norms_out, batch,
-                                         std::span<float>(x_mse.data(), batch * d));
+    float* x_mse     = scratch_a_.data();
+    float* residual  = scratch_b_.data();
+    float* projected = scratch_c_.data();
+
+    const Error dq_err =
+        mse_.dequantize(mse_indices_out, norms_out, batch, std::span<float>(x_mse, n));
     if (dq_err != Error::Ok) return dq_err;
 
     // residual = x - x_mse
-    for (std::size_t i = 0; i < batch * d; ++i) {
+    for (std::size_t i = 0; i < n; ++i) {
         residual[i] = x[i] - x_mse[i];
     }
 
     // residual_norms = ||residual||_2 per row
     for (std::size_t b = 0; b < batch; ++b) {
         double       acc = 0.0;
-        const float* r   = residual.data() + b * d;
+        const float* r   = residual + b * d;
         for (std::size_t i = 0; i < d; ++i) {
             const double v  = static_cast<double>(r[i]);
             acc            += v * v;
@@ -174,22 +132,17 @@ Error TurboQuantProd<Bits, Arch>::quantize(std::span<const float> x, std::size_t
 
     // projected = residual @ S.T  (row-major: projected = residual * S^T)
     //   shape: (batch, d) = (batch, d) * (d, d)^T
-#if defined(__APPLE__)
-    const float alpha = 1.0f, beta = 0.0f;
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, static_cast<int>(batch),
-                static_cast<int>(d), static_cast<int>(d), alpha, residual.data(),
-                static_cast<int>(d), s_.data(), static_cast<int>(d), beta, projected.data(),
-                static_cast<int>(d));
-#else
-    for (std::size_t b = 0; b < batch; ++b) {
-        // projected[b, i] = Σ_j residual[b, j] * S[i, j]
-        gemv_rowmajor(s_.data(), residual.data() + b * d, projected.data() + b * d, d,
-                      /*accumulate=*/false);
+    {
+        const float alpha = 1.0f;
+        const float beta  = 0.0f;
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, static_cast<int>(batch),
+                    static_cast<int>(d), static_cast<int>(d), alpha, residual,
+                    static_cast<int>(d), s_.data(), static_cast<int>(d), beta, projected,
+                    static_cast<int>(d));
     }
-#endif
 
     for (std::size_t b = 0; b < batch; ++b) {
-        neon::qjl_pack_signs(projected.data() + b * d, d, qjl_signs_out.data() + b * qb);
+        neon::qjl_pack_signs(projected + b * d, d, qjl_signs_out.data() + b * qb);
     }
 
     return Error::Ok;
@@ -222,38 +175,30 @@ Error TurboQuantProd<Bits, Arch>::dequantize(std::span<const std::uint8_t> mse_i
     if (dq != Error::Ok) return dq;
 
     // Stage 2: x_out += qjl_scale * residual_norms[b] * (signs @ S)
-    AlignedBuffer<float> signs;
-    AlignedBuffer<float> qjl_contrib;
-    if (!signs.resize(batch * d)) return Error::RotationFailed;
-    if (!qjl_contrib.resize(batch * d)) return Error::RotationFailed;
+    const std::size_t n = batch * d;
+    if (!scratch_a_.ensure_size(n)) return Error::RotationFailed;  // signs
+    if (!scratch_b_.ensure_size(n)) return Error::RotationFailed;  // qjl_contrib
+
+    float* signs       = scratch_a_.data();
+    float* qjl_contrib = scratch_b_.data();
 
     for (std::size_t b = 0; b < batch; ++b) {
-        neon::qjl_unpack_pm1(qjl_signs.data() + b * qb, d, signs.data() + b * d);
+        neon::qjl_unpack_pm1(qjl_signs.data() + b * qb, d, signs + b * d);
     }
 
     // qjl_contrib = signs @ S  (row-major: (batch, d) = (batch, d) * (d, d))
-#if defined(__APPLE__)
-    const float alpha = 1.0f, beta = 0.0f;
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, static_cast<int>(batch),
-                static_cast<int>(d), static_cast<int>(d), alpha, signs.data(), static_cast<int>(d),
-                s_.data(), static_cast<int>(d), beta, qjl_contrib.data(), static_cast<int>(d));
-#else
-    for (std::size_t b = 0; b < batch; ++b) {
-        const float* sr = signs.data() + b * d;
-        float*       yr = qjl_contrib.data() + b * d;
-        for (std::size_t j = 0; j < d; ++j) {
-            float acc = 0.0f;
-            for (std::size_t i = 0; i < d; ++i)
-                acc += sr[i] * s_[i * d + j];
-            yr[j] = acc;
-        }
+    {
+        const float alpha = 1.0f;
+        const float beta  = 0.0f;
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, static_cast<int>(batch),
+                    static_cast<int>(d), static_cast<int>(d), alpha, signs, static_cast<int>(d),
+                    s_.data(), static_cast<int>(d), beta, qjl_contrib, static_cast<int>(d));
     }
-#endif
 
     for (std::size_t b = 0; b < batch; ++b) {
         const float  scale = qjl_scale_ * residual_norms[b];
         float*       xr    = x_out.data() + b * d;
-        const float* qr    = qjl_contrib.data() + b * d;
+        const float* qr    = qjl_contrib + b * d;
         for (std::size_t i = 0; i < d; ++i)
             xr[i] += scale * qr[i];
     }
@@ -303,9 +248,9 @@ Error TurboQuantProd<Bits, Arch>::attention_score(std::span<const float> query, 
     AlignedBuffer<float> q_sketched;
     if (!q_sketched.resize(n_q * d)) return Error::RotationFailed;
 
-#if defined(__APPLE__)
+    const float one  = 1.0f;
+    const float zero = 0.0f;
     // scores_mse = query @ k_mse.T   (n_q × n_k)
-    const float one = 1.0f, zero = 0.0f;
     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, static_cast<int>(n_q),
                 static_cast<int>(n_k), static_cast<int>(d), one, query.data(), static_cast<int>(d),
                 k_mse.data(), static_cast<int>(d), zero, scores_out.data(), static_cast<int>(n_k));
@@ -313,41 +258,16 @@ Error TurboQuantProd<Bits, Arch>::attention_score(std::span<const float> query, 
     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, static_cast<int>(n_q), static_cast<int>(d),
                 static_cast<int>(d), one, query.data(), static_cast<int>(d), s_.data(),
                 static_cast<int>(d), zero, q_sketched.data(), static_cast<int>(d));
-#else
-    for (std::size_t q = 0; q < n_q; ++q) {
-        for (std::size_t k = 0; k < n_k; ++k) {
-            float acc = 0.0f;
-            for (std::size_t i = 0; i < d; ++i)
-                acc += query[q * d + i] * k_mse[k * d + i];
-            scores_out[q * n_k + k] = acc;
-        }
-    }
-    for (std::size_t q = 0; q < n_q; ++q) {
-        gemv_rowmajor(s_.data(), query.data() + q * d, q_sketched.data() + q * d, d,
-                      /*accumulate=*/false);
-    }
-#endif
 
     // 4. scores += qjl_scale * residual_norms[k] * (q_sketched @ signs.T)
     //    accumulate into scores_out (beta=1) after scaling the QJL path.
     AlignedBuffer<float> scores_qjl;
     if (!scores_qjl.resize(n_q * n_k)) return Error::RotationFailed;
 
-#if defined(__APPLE__)
     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, static_cast<int>(n_q),
                 static_cast<int>(n_k), static_cast<int>(d), one, q_sketched.data(),
                 static_cast<int>(d), signs.data(), static_cast<int>(d), zero, scores_qjl.data(),
                 static_cast<int>(n_k));
-#else
-    for (std::size_t q = 0; q < n_q; ++q) {
-        for (std::size_t k = 0; k < n_k; ++k) {
-            float acc = 0.0f;
-            for (std::size_t i = 0; i < d; ++i)
-                acc += q_sketched[q * d + i] * signs[k * d + i];
-            scores_qjl[q * n_k + k] = acc;
-        }
-    }
-#endif
 
     for (std::size_t q = 0; q < n_q; ++q) {
         for (std::size_t k = 0; k < n_k; ++k) {

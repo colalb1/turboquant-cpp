@@ -5,7 +5,7 @@
 
 namespace tq {
 
-// Apple M-series L1 cache line (per CPP_IMPLEMENTATION_RULES.md §2).
+// Apple M-series L1 cache line.
 inline constexpr std::size_t kCacheLine = 128;
 
 // Hard cap on per-layer dimension; used for static buffer sizing.

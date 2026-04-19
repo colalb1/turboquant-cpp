@@ -12,61 +12,36 @@
 #include <cmath>
 #include <cstring>
 
-#if defined(__APPLE__)
 #define ACCELERATE_NEW_LAPACK   1
 #define ACCELERATE_LAPACK_ILP64 0
 #include <Accelerate/Accelerate.h>
-#endif
 
 namespace tq {
 
 namespace {
 
-#if !defined(__APPLE__)
-// Scalar fallback: C = alpha * A * B^op + beta * C  (row-major).
-// Only used on non-Apple hosts for the tiny paths here.
-inline void sgemm_fallback(bool trans_b, int M, int N, int K, float alpha, const float* A, int lda,
-                           const float* B, int ldb, float beta, float* C, int ldc) noexcept {
-    for (int i = 0; i < M; ++i) {
-        for (int j = 0; j < N; ++j) {
-            float acc = 0.0f;
-            for (int k = 0; k < K; ++k) {
-                const float a  = A[i * lda + k];
-                const float b  = trans_b ? B[j * ldb + k] : B[k * ldb + j];
-                acc           += a * b;
-            }
-            float& c = C[i * ldc + j];
-            c        = alpha * acc + beta * c;
-        }
-    }
-}
-#endif
-
 inline void gemm_row(bool trans_b, int M, int N, int K, float alpha, const float* A, int lda,
                      const float* B, int ldb, float beta, float* C, int ldc) noexcept {
-#if defined(__APPLE__)
     cblas_sgemm(CblasRowMajor, CblasNoTrans, trans_b ? CblasTrans : CblasNoTrans, M, N, K, alpha, A,
                 lda, B, ldb, beta, C, ldc);
-#else
-    sgemm_fallback(trans_b, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-#endif
 }
 
 inline void softmax_rowwise(float* s, std::size_t rows, std::size_t cols) noexcept {
+    const int n = static_cast<int>(cols);
     for (std::size_t t = 0; t < rows; ++t) {
         float* row = s + t * cols;
         float  mx  = row[0];
         for (std::size_t i = 1; i < cols; ++i) {
             if (row[i] > mx) mx = row[i];
         }
+        // Subtract max in place, then vectorized exp via Accelerate.
+        for (std::size_t i = 0; i < cols; ++i) row[i] -= mx;
+        vvexpf(row, row, &n);
+
         float sum = 0.0f;
-        for (std::size_t i = 0; i < cols; ++i) {
-            row[i]  = std::exp(row[i] - mx);
-            sum    += row[i];
-        }
+        for (std::size_t i = 0; i < cols; ++i) sum += row[i];
         const float inv = 1.0f / sum;
-        for (std::size_t i = 0; i < cols; ++i)
-            row[i] *= inv;
+        for (std::size_t i = 0; i < cols; ++i) row[i] *= inv;
     }
 }
 

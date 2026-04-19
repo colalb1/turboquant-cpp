@@ -84,6 +84,12 @@ class TurboQuantMSE {
     std::uint32_t dim_ = 0;
     Rotation      rotation_{};
     CodebookView  codebook_{};
+
+    // Per-row scratch, reused across calls to avoid hot-path allocation.
+    // `mutable` because quantize/dequantize are const w.r.t. observable state.
+    mutable AlignedBuffer<float> scratch_unit_{};
+    mutable AlignedBuffer<float> scratch_rotated_{};
+    mutable AlignedBuffer<float> scratch_yhat_{};
 };
 
 // Explicit instantiations live in src/quantizer_mse.cpp.

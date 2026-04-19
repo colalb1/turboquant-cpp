@@ -105,6 +105,11 @@ class TurboQuantProd {
     MSE                  mse_{};
     AlignedBuffer<float> s_{};
     float                qjl_scale_ = 0.0f;
+
+    // Per-call scratch (size ≥ batch * dim). Reused across invocations.
+    mutable AlignedBuffer<float> scratch_a_{};
+    mutable AlignedBuffer<float> scratch_b_{};
+    mutable AlignedBuffer<float> scratch_c_{};
 };
 
 extern template class TurboQuantProd<2, arch::Scalar>;

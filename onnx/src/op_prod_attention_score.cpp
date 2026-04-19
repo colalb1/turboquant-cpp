@@ -78,11 +78,13 @@ struct ProdScoreKernel {
         const std::size_t n_q = static_cast<std::size_t>(q_shape[q_shape.size() - 2]);
         const std::size_t n_k = static_cast<std::size_t>(n_shape.back());
 
-        // Output shape: drop trailing D from q_shape, append n_k.
-        std::vector<std::int64_t> out_shape(q_shape.begin(), q_shape.end() - 1);
-        out_shape.back() = static_cast<std::int64_t>(n_q);
-        out_shape.push_back(static_cast<std::int64_t>(n_k));
-        auto scores_t = ctx.GetOutput(0, out_shape.data(), out_shape.size());
+        // Output shape: drop trailing D from q_shape, replace the new last with n_q, append n_k.
+        ShapeBuf lead   = shape_leading(q_shape);
+        if (lead.rank == 0)
+            ORT_CXX_API_THROW("Prod_AttnScore: query must have rank >= 2", ORT_INVALID_ARGUMENT);
+        lead.dims[lead.rank - 1] = static_cast<std::int64_t>(n_q);
+        ShapeBuf out_shape = shape_with_last(lead, static_cast<std::int64_t>(n_k));
+        auto     scores_t  = ctx.GetOutput(0, out_shape.data(), out_shape.size());
 
         const float*        q_p  = q.GetTensorData<float>();
         const std::uint8_t* m_p  = mse.GetTensorData<std::uint8_t>();

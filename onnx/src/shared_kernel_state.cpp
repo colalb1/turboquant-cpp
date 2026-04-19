@@ -71,17 +71,20 @@ std::shared_ptr<const T> lookup_or_create(const StateKey& key) noexcept {
         }
     }
 
-    // Cold path: construct.
-    auto res = T::make(key.dim, key.seed);
-    if (!res) return {};
-    auto sp = std::make_shared<T>(std::move(*res));
-
+    // Cold path: take the write lock, re-check, and construct inside the
+    // critical section so two threads racing on the same key never
+    // double-construct. T::make() is a few ms for large dims; widening the
+    // lock is cheap compared to duplicating the work.
+    std::shared_ptr<T> sp;
     {
         std::unique_lock<std::shared_mutex> wr(global_mutex());
-        auto [it, inserted] = global_map().try_emplace(key, Entry{sp});
-        if (!inserted) {
-            // Another thread raced us — reuse its instance.
+        if (auto it = global_map().find(key); it != global_map().end()) {
             sp = std::static_pointer_cast<T>(it->second.ptr);
+        } else {
+            auto res = T::make(key.dim, key.seed);
+            if (!res) return {};
+            sp = std::make_shared<T>(std::move(*res));
+            global_map().emplace(key, Entry{sp});
         }
     }
 

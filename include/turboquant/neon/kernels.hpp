@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "turboquant/config.hpp"
 #include "turboquant/neon/scalar_fallback.hpp"
 #include "turboquant/pack_policy.hpp"
 #include "turboquant/qjl_signs.hpp"
@@ -23,6 +24,11 @@
 #endif
 
 namespace tq::neon {
+
+// Stack scratch budget for per-row raw-index buffers in searchsorted_and_pack
+// and unpack_and_gather. Must cover the whole supported dim range — the
+// kernels have no runtime fallback for d > kMaxDim.
+static_assert(kMaxDim <= 2048, "kMaxDim exceeds the NEON kernel stack budget");
 
 // -----------------------------------------------------------------------------
 // l2norm_f32: ||x||_2 over d floats.
@@ -129,7 +135,7 @@ template <int Bits>
 searchsorted_and_pack(const float* rotated, const float* bounds, std::size_t n_bounds,
                       std::uint8_t* packed_out, std::size_t d) noexcept {
     using Pack = PackPolicy<Bits>;
-    std::uint8_t raw[1024];
+    std::uint8_t raw[kMaxDim];
     for (std::size_t i = 0; i < d; ++i) {
         raw[i] = searchsorted_one(bounds, n_bounds, rotated[i]);
     }
@@ -145,7 +151,7 @@ template <int Bits>
                                                      const float* centroids, float* y_out,
                                                      std::size_t d) noexcept {
     using Pack = PackPolicy<Bits>;
-    std::uint8_t raw[1024];
+    std::uint8_t raw[kMaxDim];
     Pack::unpack(packed, d, raw);
     for (std::size_t i = 0; i < d; ++i)
         y_out[i] = centroids[raw[i]];

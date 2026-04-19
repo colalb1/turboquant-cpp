@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.24)
 project(turboquant
     VERSION 0.1.0
-    DESCRIPTION "C++20 / ONNX port of TurboQuant quantization for Apple Silicon"
+    DESCRIPTION "C++23 / ONNX port of TurboQuant quantization for Apple Silicon"
     LANGUAGES CXX)
 
 # -----------------------------------------------------------------------------
 # Policy / toolchain guardrails
 # -----------------------------------------------------------------------------
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -25,12 +25,12 @@ option(TURBOQUANT_BUILD_BENCH     "Build microbenchmarks"         ON)
 option(TURBOQUANT_BUILD_ONNX      "Build ORT custom-op dylib"     ON)
 option(TURBOQUANT_ENABLE_LTO      "Enable thin LTO in Release"    ON)
 
-# Only supported host: Apple Silicon. Warn if we're elsewhere.
+# Only supported host: Apple Silicon. The codec TUs link Accelerate
+# (BLAS + LAPACK + vDSP); there is no portable fallback.
 if(NOT (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64"))
-    message(WARNING
-        "turboquant-cpp primary target is macOS arm64. "
-        "Current host: ${CMAKE_SYSTEM_NAME}/${CMAKE_SYSTEM_PROCESSOR}. "
-        "Build may proceed with scalar fallback paths only.")
+    message(FATAL_ERROR
+        "turboquant-cpp targets macOS arm64 only (Apple Accelerate required). "
+        "Current host: ${CMAKE_SYSTEM_NAME}/${CMAKE_SYSTEM_PROCESSOR}.")
 endif()
 
 # -----------------------------------------------------------------------------

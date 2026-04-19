@@ -15,50 +15,22 @@
 
 #include "turboquant/rotation.hpp"
 
+#include "internal/gaussian_rng.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <random>
 
-#if defined(__APPLE__)
 #define ACCELERATE_NEW_LAPACK   1
 #define ACCELERATE_LAPACK_ILP64 0
 #include <Accelerate/Accelerate.h>
-#endif
 
 namespace tq {
 
 namespace {
 
-// Marsaglia polar method — two normals per pair. Deterministic given the
-// engine state.
-inline void next_pair(std::mt19937_64& eng, float& a, float& b) noexcept {
-    std::uniform_real_distribution<float> u(-1.0f, 1.0f);
-    float                                 u1, u2, s;
-    do {
-        u1 = u(eng);
-        u2 = u(eng);
-        s  = u1 * u1 + u2 * u2;
-    } while (s >= 1.0f || s == 0.0f);
-    const float f = std::sqrt(-2.0f * std::log(s) / s);
-    a             = u1 * f;
-    b             = u2 * f;
-}
-
-void fill_gaussian(float* out, std::size_t n, std::uint32_t seed) noexcept {
-    std::mt19937_64 eng(static_cast<std::uint64_t>(seed));
-    std::size_t     i = 0;
-    while (i + 1 < n) {
-        next_pair(eng, out[i], out[i + 1]);
-        i += 2;
-    }
-    if (i < n) {
-        float a, b;
-        next_pair(eng, a, b);
-        out[i] = a;
-    }
-}
+using internal::fill_gaussian;
 
 }  // namespace
 
@@ -78,7 +50,6 @@ Result<Rotation> Rotation::make(std::size_t dim, std::uint32_t seed) noexcept {
     // but we record the order we chose so the sign-fix stays consistent.
     fill_gaussian(pi.data(), dim * dim, seed);
 
-#if defined(__APPLE__)
     // Save diag(R) sign after sgeqrf, then column-scale Q after sorgqr.
     AlignedBuffer<float> diag_sign;
     if (!diag_sign.resize(dim)) return make_error<Rotation>(Error::RotationFailed);
@@ -148,13 +119,6 @@ Result<Rotation> Rotation::make(std::size_t dim, std::uint32_t seed) noexcept {
                 static_cast<vDSP_Length>(dim));
     std::memcpy(pi.data(), rm.data(), dim * dim * sizeof(float));
 
-#else
-    // Non-Apple host: leave pi as raw Gaussian (not orthogonal). This
-    // branch only runs on CI linters — the production target is Apple
-    // Silicon, where we always take the LAPACK path above.
-    return make_error<Rotation>(Error::NotImplemented);
-#endif
-
     return Result<Rotation>(Rotation(dim, std::move(pi)));
 }
 
@@ -185,7 +149,6 @@ Error Rotation::forward(std::span<const float> x, std::span<float> y,
     if (x.size() != batch * d || y.size() != batch * d) return Error::ShapeMismatch;
     if (batch == 0) return Error::Ok;
 
-#if defined(__APPLE__)
     // Python: y = x @ Pi.T   →   y[b, i] = Σ_j x[b, j] * Pi[i, j]
     // With row-major Pi (d×d), that's equivalent to:
     //   Y (batch × d) = X (batch × d) * Pi^T (d × d)  (row-major sgemm)
@@ -195,22 +158,6 @@ Error Rotation::forward(std::span<const float> x, std::span<float> y,
                 static_cast<int>(d), static_cast<int>(d), alpha, x.data(), static_cast<int>(d),
                 pi_.data(), static_cast<int>(d), beta, y.data(), static_cast<int>(d));
     return Error::Ok;
-#else
-    // Portable fallback (slow — used only on non-Apple CI builds).
-    const float* pi = pi_.data();
-    for (std::size_t b = 0; b < batch; ++b) {
-        const float* xb = x.data() + b * d;
-        float*       yb = y.data() + b * d;
-        for (std::size_t i = 0; i < d; ++i) {
-            float        acc = 0.0f;
-            const float* row = pi + i * d;
-            for (std::size_t j = 0; j < d; ++j)
-                acc += row[j] * xb[j];
-            yb[i] = acc;
-        }
-    }
-    return Error::Ok;
-#endif
 }
 
 Error Rotation::backward(std::span<const float> y, std::span<float> x,
@@ -220,7 +167,6 @@ Error Rotation::backward(std::span<const float> y, std::span<float> x,
     if (y.size() != batch * d || x.size() != batch * d) return Error::ShapeMismatch;
     if (batch == 0) return Error::Ok;
 
-#if defined(__APPLE__)
     // Python: x = y @ Pi   →   x[b, i] = Σ_j y[b, j] * Pi[j, i]
     //   X (batch × d) = Y (batch × d) * Pi (d × d)  (row-major sgemm, NoTrans)
     const float alpha = 1.0f;
@@ -229,20 +175,6 @@ Error Rotation::backward(std::span<const float> y, std::span<float> x,
                 static_cast<int>(d), static_cast<int>(d), alpha, y.data(), static_cast<int>(d),
                 pi_.data(), static_cast<int>(d), beta, x.data(), static_cast<int>(d));
     return Error::Ok;
-#else
-    const float* pi = pi_.data();
-    for (std::size_t b = 0; b < batch; ++b) {
-        const float* yb = y.data() + b * d;
-        float*       xb = x.data() + b * d;
-        for (std::size_t i = 0; i < d; ++i) {
-            float acc = 0.0f;
-            for (std::size_t j = 0; j < d; ++j)
-                acc += yb[j] * pi[j * d + i];
-            xb[i] = acc;
-        }
-    }
-    return Error::Ok;
-#endif
 }
 
 }  // namespace tq

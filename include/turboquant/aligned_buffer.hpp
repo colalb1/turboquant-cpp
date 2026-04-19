@@ -44,19 +44,32 @@ class AlignedBuffer {
     }
 
     // Allocates n elements, 128-byte aligned. Returns false on failure;
-    // in that case the buffer is left empty.
+    // in that case the buffer is left empty. Contents are zero-initialized.
     [[nodiscard]] bool resize(std::size_t n) noexcept {
+        if (!resize_uninitialized(n)) return false;
+        if (size_ != 0) std::memset(data_, 0, size_ * sizeof(T));
+        return true;
+    }
+
+    // Same as resize() but leaves memory uninitialized. Use for scratch
+    // buffers that are fully overwritten before being read.
+    [[nodiscard]] bool resize_uninitialized(std::size_t n) noexcept {
         free_();
         if (n == 0) return true;
         void*             p     = nullptr;
         const std::size_t bytes = n * sizeof(T);
-        // posix_memalign rounds up to a multiple of alignment/sizeof(void*).
-        const int rc = ::posix_memalign(&p, kCacheLine, bytes);
+        const int         rc    = ::posix_memalign(&p, kCacheLine, bytes);
         if (rc != 0 || p == nullptr) return false;
         data_ = static_cast<T*>(p);
         size_ = n;
-        std::memset(data_, 0, bytes);
         return true;
+    }
+
+    // Grow to at least n elements without zeroing. Keeps existing allocation
+    // when already large enough — intended for reusable scratch members.
+    [[nodiscard]] bool ensure_size(std::size_t n) noexcept {
+        if (size_ >= n) return true;
+        return resize_uninitialized(n);
     }
 
     T*          data() noexcept { return data_; }

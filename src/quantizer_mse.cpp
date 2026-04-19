@@ -70,10 +70,8 @@ Error TurboQuantMSE<Bits, Arch>::quantize(std::span<const float> x, std::size_t 
     if (norms_out.size() != batch) return Error::ShapeMismatch;
     if (batch == 0) return Error::Ok;
 
-    AlignedBuffer<float> unit;
-    AlignedBuffer<float> rotated;
-    if (!unit.resize(d)) return Error::RotationFailed;
-    if (!rotated.resize(d)) return Error::RotationFailed;
+    if (!scratch_unit_.ensure_size(d)) return Error::RotationFailed;
+    if (!scratch_rotated_.ensure_size(d)) return Error::RotationFailed;
 
     const float*      bounds   = codebook_.decision_boundaries.data();
     const std::size_t n_bounds = codebook_.decision_boundaries.size();
@@ -84,14 +82,14 @@ Error TurboQuantMSE<Bits, Arch>::quantize(std::span<const float> x, std::size_t 
         const float norm = neon::l2norm(xb, d);
         norms_out[b]     = norm;
         const float inv  = 1.0f / (norm + 1e-10f);
-        neon::scale(xb, inv, unit.data(), d);
+        neon::scale(xb, inv, scratch_unit_.data(), d);
 
-        const Error fe = rotation_.forward(std::span<const float>(unit.data(), d),
-                                           std::span<float>(rotated.data(), d),
+        const Error fe = rotation_.forward(std::span<const float>(scratch_unit_.data(), d),
+                                           std::span<float>(scratch_rotated_.data(), d),
                                            /*batch=*/1);
         if (fe != Error::Ok) return fe;
 
-        neon::searchsorted_and_pack<Bits>(rotated.data(), bounds, n_bounds,
+        neon::searchsorted_and_pack<Bits>(scratch_rotated_.data(), bounds, n_bounds,
                                           indices_out.data() + b * pb, d);
     }
 
@@ -115,18 +113,17 @@ Error TurboQuantMSE<Bits, Arch>::dequantize(std::span<const std::uint8_t> indice
     if (x_out.size() != batch * d) return Error::ShapeMismatch;
     if (batch == 0) return Error::Ok;
 
-    AlignedBuffer<float> y_hat;
-    if (!y_hat.resize(d)) return Error::RotationFailed;
+    if (!scratch_yhat_.ensure_size(d)) return Error::RotationFailed;
 
     const float* centroids = codebook_.centroids.data();
 
     for (std::size_t b = 0; b < batch; ++b) {
-        neon::unpack_and_gather<Bits>(indices.data() + b * pb, centroids, y_hat.data(), d);
+        neon::unpack_and_gather<Bits>(indices.data() + b * pb, centroids, scratch_yhat_.data(), d);
 
         float*      xb = x_out.data() + b * d;
-        const Error be =
-            rotation_.backward(std::span<const float>(y_hat.data(), d), std::span<float>(xb, d),
-                               /*batch=*/1);
+        const Error be = rotation_.backward(std::span<const float>(scratch_yhat_.data(), d),
+                                            std::span<float>(xb, d),
+                                            /*batch=*/1);
         if (be != Error::Ok) return be;
 
         neon::scale(xb, norms[b], xb, d);

@@ -7,18 +7,23 @@
 #include <cstring>
 #include <utility>
 
+#define ACCELERATE_NEW_LAPACK   1
+#define ACCELERATE_LAPACK_ILP64 0
+#include <Accelerate/Accelerate.h>
+
 namespace tq {
 
 namespace {
 
-// Transpose (T, H, D) row-major floats → (H, T, D) row-major floats.
+// Permute (T, H, D) row-major → (H, T, D) row-major. Each per-head slab is a
+// strided T×D view over the source; one vDSP_mmov call per head dispatches a
+// vectorized block copy instead of looping T scalar memcpies.
 inline void transpose_thd_to_htd(const float* src, float* dst, std::size_t T, std::size_t H,
                                  std::size_t D) noexcept {
-    const std::size_t row_bytes = D * sizeof(float);
     for (std::size_t h = 0; h < H; ++h) {
-        for (std::size_t t = 0; t < T; ++t) {
-            std::memcpy(dst + (h * T + t) * D, src + (t * H + h) * D, row_bytes);
-        }
+        vDSP_mmov(src + h * D, dst + h * T * D, static_cast<vDSP_Length>(D),
+                  static_cast<vDSP_Length>(T), static_cast<vDSP_Length>(H * D),
+                  static_cast<vDSP_Length>(D));
     }
 }
 

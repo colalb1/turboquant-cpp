@@ -7,10 +7,10 @@
 #define ORT_API_MANUAL_INIT
 #include <onnxruntime_cxx_api.h>
 
+#include <array>
 #include <cstdint>
 #include <span>
 #include <string>
-#include <vector>
 
 namespace tq::onnx {
 
@@ -34,25 +34,49 @@ inline std::int64_t require_int_attr(const OrtApi& api, const OrtKernelInfo* inf
     return v;
 }
 
+// Fixed-capacity shape buffer for ORT output shape construction. Avoids the
+// heap allocation a std::vector would incur on every Compute() call.
+struct ShapeBuf {
+    static constexpr std::size_t         kMaxRank = 8;
+    std::array<std::int64_t, kMaxRank> dims{};
+    std::size_t                        rank = 0;
+
+    const std::int64_t* data() const noexcept { return dims.data(); }
+    std::size_t         size() const noexcept { return rank; }
+
+    operator std::span<const std::int64_t>() const noexcept { return {dims.data(), rank}; }
+};
+
 // Count the product of a shape's dims (or 1 if empty).
-inline std::size_t shape_numel(const std::vector<std::int64_t>& dims) noexcept {
+inline std::size_t shape_numel(std::span<const std::int64_t> dims) noexcept {
     std::size_t n = 1;
-    for (auto d : dims)
-        n *= static_cast<std::size_t>(d);
+    for (auto d : dims) n *= static_cast<std::size_t>(d);
     return n;
 }
 
 // Everything but the last dim.
-inline std::vector<std::int64_t> shape_leading(const std::vector<std::int64_t>& dims) {
-    if (dims.empty()) return {};
-    return {dims.begin(), dims.end() - 1};
+inline ShapeBuf shape_leading(std::span<const std::int64_t> dims) {
+    ShapeBuf out;
+    if (dims.empty()) return out;
+    out.rank = dims.size() - 1;
+    if (out.rank > ShapeBuf::kMaxRank) {
+        ORT_CXX_API_THROW("turboquant: tensor rank exceeds ShapeBuf::kMaxRank",
+                          ORT_INVALID_ARGUMENT);
+    }
+    for (std::size_t i = 0; i < out.rank; ++i) out.dims[i] = dims[i];
+    return out;
 }
 
 // A buffer of leading dims plus one trailing dim, e.g. x.shape[:-1] + [k].
-inline std::vector<std::int64_t> shape_with_last(const std::vector<std::int64_t>& leading,
-                                                 std::int64_t                     last) {
-    std::vector<std::int64_t> out(leading);
-    out.push_back(last);
+inline ShapeBuf shape_with_last(std::span<const std::int64_t> leading, std::int64_t last) {
+    ShapeBuf out;
+    out.rank = leading.size() + 1;
+    if (out.rank > ShapeBuf::kMaxRank) {
+        ORT_CXX_API_THROW("turboquant: tensor rank exceeds ShapeBuf::kMaxRank",
+                          ORT_INVALID_ARGUMENT);
+    }
+    for (std::size_t i = 0; i < leading.size(); ++i) out.dims[i] = leading[i];
+    out.dims[leading.size()] = last;
     return out;
 }
 
