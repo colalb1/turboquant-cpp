@@ -64,8 +64,7 @@ void bench_prod_dequantize(benchmark::State& state) {
         std::abort();
 
     for (auto _ : state) {
-        tq::Error e = q.dequantize(mse_indices, qjl_signs, residual_norms,
-                                   norms, batch, x_out);
+        tq::Error e = q.dequantize(mse_indices, qjl_signs, residual_norms, norms, batch, x_out);
         benchmark::DoNotOptimize(e);
         benchmark::DoNotOptimize(x_out.data());
         benchmark::ClobberMemory();
@@ -84,7 +83,7 @@ void dequant_args(benchmark::internal::Benchmark* b) {
     }
 }
 
-} // namespace
+}  // namespace
 
 BENCHMARK(bench_mse_dequantize<1>)->Apply(dequant_args)->Name("MSE_Dequantize/b=1");
 BENCHMARK(bench_mse_dequantize<2>)->Apply(dequant_args)->Name("MSE_Dequantize/b=2");

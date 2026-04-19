@@ -16,18 +16,14 @@
 namespace tq {
 
 struct QJLPack {
-    static constexpr std::size_t packed_bytes(std::size_t d) noexcept {
-        return ceil_div(d, 8);
-    }
+    static constexpr std::size_t packed_bytes(std::size_t d) noexcept { return ceil_div(d, 8); }
 
     // Pack `d` floats: byte k has bit i set iff projected[8*k + i] > 0.
-    static void pack(const float* projected, std::size_t d,
-                     std::uint8_t* out) noexcept
-    {
+    static void pack(const float* projected, std::size_t d, std::uint8_t* out) noexcept {
         const std::size_t nb = packed_bytes(d);
         for (std::size_t b = 0; b < nb; ++b) {
             const std::size_t base = b * 8;
-            std::uint8_t byte = 0;
+            std::uint8_t      byte = 0;
             for (int k = 0; k < 8; ++k) {
                 const std::size_t i = base + static_cast<std::size_t>(k);
                 if (i < d && projected[i] > 0.0f) {
@@ -40,13 +36,11 @@ struct QJLPack {
 
     // Unpack to a dense float array of length d with values in {-1, +1}.
     // Trailing pad (d < 8*nb) is untouched; callers allocate exactly `d`.
-    static void unpack_pm1(const std::uint8_t* packed, std::size_t d,
-                           float* out) noexcept
-    {
+    static void unpack_pm1(const std::uint8_t* packed, std::size_t d, float* out) noexcept {
         const std::size_t nb = packed_bytes(d);
         for (std::size_t b = 0; b < nb; ++b) {
             const std::uint8_t byte = packed[b];
-            const std::size_t base = b * 8;
+            const std::size_t  base = b * 8;
             for (int k = 0; k < 8; ++k) {
                 const std::size_t i = base + static_cast<std::size_t>(k);
                 if (i < d) {
@@ -57,4 +51,4 @@ struct QJLPack {
     }
 };
 
-} // namespace tq
+}  // namespace tq

@@ -28,22 +28,22 @@ void bench_prod_score(benchmark::State& state) {
     const std::size_t qjl_pb = tq::TurboQuantProd<Bits>::qjl_packed_bytes(dim);
 
     std::vector<float> keys_x(n_k * dim);
-    std::vector<float> query (n_q * dim);
+    std::vector<float> query(n_q * dim);
     tq::bench::fill_gaussian(keys_x, 0x5C0DE001u);
-    tq::bench::fill_gaussian(query,  0x5C0DE002u);
+    tq::bench::fill_gaussian(query, 0x5C0DE002u);
 
     std::vector<std::uint8_t> mse_indices(n_k * mse_pb);
-    std::vector<std::uint8_t> qjl_signs (n_k * qjl_pb);
+    std::vector<std::uint8_t> qjl_signs(n_k * qjl_pb);
     std::vector<float>        residual_norms(n_k);
     std::vector<float>        norms(n_k);
     std::vector<float>        scores(n_q * n_k);
 
-    if (q.quantize(keys_x, n_k, mse_indices, qjl_signs,
-                   residual_norms, norms) != tq::Error::Ok) std::abort();
+    if (q.quantize(keys_x, n_k, mse_indices, qjl_signs, residual_norms, norms) != tq::Error::Ok)
+        std::abort();
 
     for (auto _ : state) {
-        tq::Error e = q.attention_score(query, n_q, mse_indices, qjl_signs,
-                                        residual_norms, norms, n_k, scores);
+        tq::Error e = q.attention_score(query, n_q, mse_indices, qjl_signs, residual_norms, norms,
+                                        n_k, scores);
         benchmark::DoNotOptimize(e);
         benchmark::DoNotOptimize(scores.data());
         benchmark::ClobberMemory();
@@ -51,8 +51,8 @@ void bench_prod_score(benchmark::State& state) {
 
     // Report both "pairs/sec" (q×k dot products) and bytes of score output.
     state.SetItemsProcessed(static_cast<std::int64_t>(n_q * n_k) * state.iterations());
-    state.SetBytesProcessed(static_cast<std::int64_t>(n_q * n_k * sizeof(float))
-                            * state.iterations());
+    state.SetBytesProcessed(static_cast<std::int64_t>(n_q * n_k * sizeof(float)) *
+                            state.iterations());
 }
 
 void score_args(benchmark::internal::Benchmark* b) {
@@ -65,7 +65,7 @@ void score_args(benchmark::internal::Benchmark* b) {
     }
 }
 
-} // namespace
+}  // namespace
 
 BENCHMARK(bench_prod_score<2>)->Apply(score_args)->Name("Prod_Score/b=2");
 BENCHMARK(bench_prod_score<3>)->Apply(score_args)->Name("Prod_Score/b=3");

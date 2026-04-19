@@ -18,9 +18,9 @@ inline constexpr int kMaxBits = 4;
 // Public symbol visibility marker. Enables `-fvisibility=hidden` at the TU
 // level while still exporting the small set of API types and factory funcs.
 #if defined(_WIN32)
-#  define TQ_API
+#define TQ_API
 #else
-#  define TQ_API __attribute__((visibility("default")))
+#define TQ_API __attribute__((visibility("default")))
 #endif
 
-} // namespace tq
+}  // namespace tq

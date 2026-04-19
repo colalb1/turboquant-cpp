@@ -30,36 +30,39 @@ namespace tq {
 
 namespace detail {
 
-template <int Bits> struct ValuePack;
+template <int Bits>
+struct ValuePack;
 
-template <> struct ValuePack<2> {
-    using Policy = PackPolicy<2>;
+template <>
+struct ValuePack<2> {
+    using Policy                  = PackPolicy<2>;
     static constexpr int n_levels = 3;
 };
-template <> struct ValuePack<4> {
-    using Policy = PackPolicy<4>;
+template <>
+struct ValuePack<4> {
+    using Policy                  = PackPolicy<4>;
     static constexpr int n_levels = 15;
 };
 // bits=8: no bit-packing, one byte per index.
-template <> struct ValuePack<8> {
+template <>
+struct ValuePack<8> {
     struct Policy {
         static constexpr std::size_t packed_bytes(std::size_t d) noexcept { return d; }
-        static void pack  (const std::uint8_t* in, std::size_t d, std::uint8_t* out) noexcept;
+        static void pack(const std::uint8_t* in, std::size_t d, std::uint8_t* out) noexcept;
         static void unpack(const std::uint8_t* in, std::size_t d, std::uint8_t* out) noexcept;
     };
     static constexpr int n_levels = 255;
 };
 
-} // namespace detail
+}  // namespace detail
 
 template <int Bits>
 struct ValueCodec {
-    static_assert(Bits == 2 || Bits == 4 || Bits == 8,
-                  "ValueCodec supports bits in {2, 4, 8}");
+    static_assert(Bits == 2 || Bits == 4 || Bits == 8, "ValueCodec supports bits in {2, 4, 8}");
 
     static constexpr int bits     = Bits;
     static constexpr int n_levels = detail::ValuePack<Bits>::n_levels;
-    using Pack = typename detail::ValuePack<Bits>::Policy;
+    using Pack                    = typename detail::ValuePack<Bits>::Policy;
 
     static constexpr std::size_t packed_bytes(std::size_t dim) noexcept {
         return Pack::packed_bytes(dim);
@@ -74,25 +77,17 @@ struct ValueCodec {
     //   data_out   : batch * packed_bytes(dim)
     //   scales_out : batch * n_groups(dim, group_size)
     //   zeros_out  : batch * n_groups(dim, group_size)
-    static Error quantize(std::span<const float>  v,
-                          std::size_t              batch,
-                          std::size_t              dim,
-                          std::size_t              group_size,
-                          std::span<std::uint8_t>  data_out,
-                          std::span<float>         scales_out,
-                          std::span<float>         zeros_out) noexcept;
+    static Error quantize(std::span<const float> v, std::size_t batch, std::size_t dim,
+                          std::size_t group_size, std::span<std::uint8_t> data_out,
+                          std::span<float> scales_out, std::span<float> zeros_out) noexcept;
 
-    static Error dequantize(std::span<const std::uint8_t> data,
-                            std::span<const float>        scales,
-                            std::span<const float>        zeros,
-                            std::size_t                   batch,
-                            std::size_t                   dim,
-                            std::size_t                   group_size,
-                            std::span<float>              v_out) noexcept;
+    static Error dequantize(std::span<const std::uint8_t> data, std::span<const float> scales,
+                            std::span<const float> zeros, std::size_t batch, std::size_t dim,
+                            std::size_t group_size, std::span<float> v_out) noexcept;
 };
 
 extern template struct ValueCodec<2>;
 extern template struct ValueCodec<4>;
 extern template struct ValueCodec<8>;
 
-} // namespace tq
+}  // namespace tq

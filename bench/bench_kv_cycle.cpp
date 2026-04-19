@@ -18,10 +18,10 @@ namespace {
 
 template <int KeyBits, int ValBits>
 void bench_capture_ingest_decode(benchmark::State& state) {
-    const std::size_t dim          = static_cast<std::size_t>(state.range(0));
-    const std::size_t num_kv_heads = static_cast<std::size_t>(state.range(1));
-    const std::size_t prefill_n    = static_cast<std::size_t>(state.range(2));
-    const std::size_t decode_steps = static_cast<std::size_t>(state.range(3));
+    const std::size_t     dim           = static_cast<std::size_t>(state.range(0));
+    const std::size_t     num_kv_heads  = static_cast<std::size_t>(state.range(1));
+    const std::size_t     prefill_n     = static_cast<std::size_t>(state.range(2));
+    const std::size_t     decode_steps  = static_cast<std::size_t>(state.range(3));
     constexpr std::size_t group_size    = 32;
     constexpr std::size_t ring_capacity = 128;
 
@@ -31,14 +31,13 @@ void bench_capture_ingest_decode(benchmark::State& state) {
     std::vector<float> v_dec(num_kv_heads * dim);
     tq::bench::fill_gaussian(k_pref, 0xAABBCC01u);
     tq::bench::fill_gaussian(v_pref, 0xAABBCC02u);
-    tq::bench::fill_gaussian(k_dec,  0xAABBCC03u);
-    tq::bench::fill_gaussian(v_dec,  0xAABBCC04u);
+    tq::bench::fill_gaussian(k_dec, 0xAABBCC03u);
+    tq::bench::fill_gaussian(v_dec, 0xAABBCC04u);
 
     for (auto _ : state) {
-        auto eng = tq::bench::must(
-            tq::KVCaptureEngine<KeyBits, ValBits>::make(
-                dim, num_kv_heads, group_size, ring_capacity, /*seed=*/42));
-        tq::Error e = eng.ingest_prefill(k_pref, v_pref, prefill_n);
+        auto      eng = tq::bench::must(tq::KVCaptureEngine<KeyBits, ValBits>::make(
+            dim, num_kv_heads, group_size, ring_capacity, /*seed=*/42));
+        tq::Error e   = eng.ingest_prefill(k_pref, v_pref, prefill_n);
         benchmark::DoNotOptimize(e);
         for (std::size_t t = 0; t < decode_steps; ++t) {
             e = eng.ingest_decode(k_dec, v_dec, 1);
@@ -47,25 +46,24 @@ void bench_capture_ingest_decode(benchmark::State& state) {
         benchmark::ClobberMemory();
     }
 
-    state.SetItemsProcessed(
-        static_cast<std::int64_t>(prefill_n + decode_steps) * state.iterations());
+    state.SetItemsProcessed(static_cast<std::int64_t>(prefill_n + decode_steps) *
+                            state.iterations());
 }
 
 template <int KeyBits, int ValBits>
 void bench_hybrid_attention(benchmark::State& state) {
     const std::size_t dim          = static_cast<std::size_t>(state.range(0));
     const std::size_t num_kv_heads = static_cast<std::size_t>(state.range(1));
-    const std::size_t num_q_heads  = num_kv_heads;   // GQA group = 1 for baseline
+    const std::size_t num_q_heads  = num_kv_heads;  // GQA group = 1 for baseline
     const std::size_t history_n    = static_cast<std::size_t>(state.range(2));
     const std::size_t recent_n     = static_cast<std::size_t>(state.range(3));
-    const std::size_t n_q_tokens   = 1;              // typical decode step
+    const std::size_t n_q_tokens   = 1;  // typical decode step
 
     constexpr std::size_t group_size    = 32;
     constexpr std::size_t ring_capacity = 128;
 
-    auto eng = tq::bench::must(
-        tq::KVCaptureEngine<KeyBits, ValBits>::make(
-            dim, num_kv_heads, group_size, ring_capacity, /*seed=*/42));
+    auto eng = tq::bench::must(tq::KVCaptureEngine<KeyBits, ValBits>::make(
+        dim, num_kv_heads, group_size, ring_capacity, /*seed=*/42));
 
     // Fill the store with `history_n` tokens via ingest_prefill. Anything
     // over ring_capacity lands in the compressed store; the trailing
@@ -84,13 +82,13 @@ void bench_hybrid_attention(benchmark::State& state) {
     tq::bench::fill_gaussian(recent_v, 0x5C0DEA04u);
 
     std::vector<float> query(n_q_tokens * num_q_heads * dim);
-    std::vector<float> out  (n_q_tokens * num_q_heads * dim);
+    std::vector<float> out(n_q_tokens * num_q_heads * dim);
     tq::bench::fill_gaussian(query, 0x5C0DEA05u);
 
     for (auto _ : state) {
         tq::Error e = tq::compute_hybrid_attention<KeyBits, ValBits>(
-            query, n_q_tokens, num_q_heads, eng.store(),
-            recent_k, recent_v, recent_n, /*scale=*/0.0f, out);
+            query, n_q_tokens, num_q_heads, eng.store(), recent_k, recent_v, recent_n,
+            /*scale=*/0.0f, out);
         benchmark::DoNotOptimize(e);
         benchmark::DoNotOptimize(out.data());
         benchmark::ClobberMemory();
@@ -98,8 +96,7 @@ void bench_hybrid_attention(benchmark::State& state) {
 
     // Keys scored per iteration = history + recent.
     const std::int64_t k_total = static_cast<std::int64_t>(history_n + recent_n);
-    state.SetItemsProcessed(k_total * static_cast<std::int64_t>(num_q_heads)
-                            * state.iterations());
+    state.SetItemsProcessed(k_total * static_cast<std::int64_t>(num_q_heads) * state.iterations());
 }
 
 void capture_args(benchmark::internal::Benchmark* b) {
@@ -124,14 +121,14 @@ void score_args(benchmark::internal::Benchmark* b) {
     }
 }
 
-} // namespace
+}  // namespace
 
 BENCHMARK(bench_capture_ingest_decode<2, 4>)
-    ->Apply(capture_args)->Name("KV_CaptureIngest/kb=2/vb=4");
+    ->Apply(capture_args)
+    ->Name("KV_CaptureIngest/kb=2/vb=4");
 BENCHMARK(bench_capture_ingest_decode<4, 4>)
-    ->Apply(capture_args)->Name("KV_CaptureIngest/kb=4/vb=4");
+    ->Apply(capture_args)
+    ->Name("KV_CaptureIngest/kb=4/vb=4");
 
-BENCHMARK(bench_hybrid_attention<2, 4>)
-    ->Apply(score_args)->Name("KV_HybridAttention/kb=2/vb=4");
-BENCHMARK(bench_hybrid_attention<4, 4>)
-    ->Apply(score_args)->Name("KV_HybridAttention/kb=4/vb=4");
+BENCHMARK(bench_hybrid_attention<2, 4>)->Apply(score_args)->Name("KV_HybridAttention/kb=2/vb=4");
+BENCHMARK(bench_hybrid_attention<4, 4>)->Apply(score_args)->Name("KV_HybridAttention/kb=4/vb=4");

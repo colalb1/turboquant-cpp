@@ -32,7 +32,7 @@ static void init_api_once() {
 
 TEST_CASE("RegisterCustomOps attaches com.turboquant domain cleanly", "[onnx]") {
     init_api_once();
-    Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "tq_smoke");
+    Ort::Env            env(ORT_LOGGING_LEVEL_WARNING, "tq_smoke");
     Ort::SessionOptions opts;
 
     OrtStatus* st = RegisterCustomOps(opts, OrtGetApiBase());
@@ -46,7 +46,7 @@ TEST_CASE("RegisterCustomOps attaches com.turboquant domain cleanly", "[onnx]") 
 
 TEST_CASE("RegisterCustomOps is idempotent across repeated calls", "[onnx]") {
     init_api_once();
-    Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "tq_smoke_repeat");
+    Ort::Env            env(ORT_LOGGING_LEVEL_WARNING, "tq_smoke_repeat");
     Ort::SessionOptions opts;
 
     for (int i = 0; i < 3; ++i) {

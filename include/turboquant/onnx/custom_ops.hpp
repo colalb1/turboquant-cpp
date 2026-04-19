@@ -10,17 +10,17 @@
 #include <onnxruntime_c_api.h>
 
 #if defined(_WIN32)
-#  define TQ_ORT_EXPORT __declspec(dllexport)
+#define TQ_ORT_EXPORT __declspec(dllexport)
 #else
-#  define TQ_ORT_EXPORT __attribute__((visibility("default")))
+#define TQ_ORT_EXPORT __attribute__((visibility("default")))
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-TQ_ORT_EXPORT OrtStatus* ORT_API_CALL
-RegisterCustomOps(OrtSessionOptions* options, const OrtApiBase* api) noexcept;
+TQ_ORT_EXPORT OrtStatus* ORT_API_CALL RegisterCustomOps(OrtSessionOptions* options,
+                                                        const OrtApiBase*  api) noexcept;
 
 #ifdef __cplusplus
 }

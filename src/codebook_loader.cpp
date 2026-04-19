@@ -31,25 +31,24 @@
 namespace tq {
 
 // Forward decl — defined in codebook_lloyd_max.cpp.
-Result<CodebookView>
-compute_lloyd_max_internal(std::uint32_t dim, std::uint32_t bits,
-                           const LloydMaxOpts& opts,
-                           AlignedBuffer<float>& centroids_out,
-                           AlignedBuffer<float>& interior_out,
-                           float& mse_per_coord_out) noexcept;
+Result<CodebookView> compute_lloyd_max_internal(std::uint32_t dim, std::uint32_t bits,
+                                                const LloydMaxOpts&   opts,
+                                                AlignedBuffer<float>& centroids_out,
+                                                AlignedBuffer<float>& interior_out,
+                                                float&                mse_per_coord_out) noexcept;
 
 struct CodebookRegistry::Impl {
     struct Entry {
-        AlignedBuffer<float> centroids;       // owning
-        AlignedBuffer<float> interior;        // owning, size 2^b - 1
-        std::uint32_t        dim  = 0;
-        std::uint32_t        bits = 0;
+        AlignedBuffer<float> centroids;  // owning
+        AlignedBuffer<float> interior;   // owning, size 2^b - 1
+        std::uint32_t        dim           = 0;
+        std::uint32_t        bits          = 0;
         float                mse_per_coord = 0.0f;
         float                mse_total     = 0.0f;
     };
 
-    std::mutex                                      mu;
-    std::unordered_map<std::uint64_t, Entry>        cache;
+    std::mutex                               mu;
+    std::unordered_map<std::uint64_t, Entry> cache;
 
     static std::uint64_t key(std::uint32_t d, std::uint32_t b) noexcept {
         return (static_cast<std::uint64_t>(d) << 32) | static_cast<std::uint64_t>(b);
@@ -57,12 +56,12 @@ struct CodebookRegistry::Impl {
 
     CodebookView view_of(const Entry& e) noexcept {
         CodebookView v;
-        v.centroids = { e.centroids.data(), e.centroids.size() };
-        v.decision_boundaries = { e.interior.data(), e.interior.size() };
-        v.dim = e.dim;
-        v.bits = e.bits;
-        v.mse_per_coord = e.mse_per_coord;
-        v.mse_total = e.mse_total;
+        v.centroids           = {e.centroids.data(), e.centroids.size()};
+        v.decision_boundaries = {e.interior.data(), e.interior.size()};
+        v.dim                 = e.dim;
+        v.bits                = e.bits;
+        v.mse_per_coord       = e.mse_per_coord;
+        v.mse_total           = e.mse_total;
         return v;
     }
 };
@@ -81,20 +80,19 @@ CodebookRegistry& CodebookRegistry::instance() noexcept {
 // Embedded lookup — no mutation, safe without the mutex.
 // -----------------------------------------------------------------------------
 
-Result<CodebookView>
-CodebookRegistry::find_embedded(std::uint32_t dim, std::uint32_t bits) noexcept
-{
+Result<CodebookView> CodebookRegistry::find_embedded(std::uint32_t dim,
+                                                     std::uint32_t bits) noexcept {
     auto blobs = embedded_codebooks();
     for (const auto& b : blobs) {
         if (b.dim == dim && b.bits == bits) {
-            CodebookView v;
+            CodebookView      v;
             const std::size_t n_cl = std::size_t{1} << bits;
-            v.centroids = { b.centroids, n_cl };
-            v.decision_boundaries = { b.decision_boundaries, n_cl - 1 };
-            v.dim = b.dim;
-            v.bits = b.bits;
-            v.mse_per_coord = b.mse_per_coord;
-            v.mse_total = b.mse_total;
+            v.centroids            = {b.centroids, n_cl};
+            v.decision_boundaries  = {b.decision_boundaries, n_cl - 1};
+            v.dim                  = b.dim;
+            v.bits                 = b.bits;
+            v.mse_per_coord        = b.mse_per_coord;
+            v.mse_total            = b.mse_total;
             return Result<CodebookView>(v);
         }
     }
@@ -105,18 +103,16 @@ CodebookRegistry::find_embedded(std::uint32_t dim, std::uint32_t bits) noexcept
 // get(): cache → embedded → env-dir JSON → Lloyd-Max
 // -----------------------------------------------------------------------------
 
-Result<CodebookView>
-CodebookRegistry::get(std::uint32_t dim, std::uint32_t bits) noexcept
-{
+Result<CodebookView> CodebookRegistry::get(std::uint32_t dim, std::uint32_t bits) noexcept {
     if (dim == 0 || dim > kMaxDim) return make_error<CodebookView>(Error::InvalidDim);
-    if (bits < 1 || bits > 4)      return make_error<CodebookView>(Error::InvalidBits);
+    if (bits < 1 || bits > 4) return make_error<CodebookView>(Error::InvalidBits);
 
-    auto& im = impl();
-    const std::uint64_t k = Impl::key(dim, bits);
+    auto&               im = impl();
+    const std::uint64_t k  = Impl::key(dim, bits);
 
     {
         std::lock_guard<std::mutex> lg(im.mu);
-        auto it = im.cache.find(k);
+        auto                        it = im.cache.find(k);
         if (it != im.cache.end()) return Result<CodebookView>(im.view_of(it->second));
     }
 
@@ -129,12 +125,11 @@ CodebookRegistry::get(std::uint32_t dim, std::uint32_t bits) noexcept
             !e.interior.resize(r->decision_boundaries.size())) {
             return make_error<CodebookView>(Error::CodebookCorrupt);
         }
-        std::memcpy(e.centroids.data(), r->centroids.data(),
-                    r->centroids.size() * sizeof(float));
+        std::memcpy(e.centroids.data(), r->centroids.data(), r->centroids.size() * sizeof(float));
         std::memcpy(e.interior.data(), r->decision_boundaries.data(),
                     r->decision_boundaries.size() * sizeof(float));
-        e.dim  = r->dim;
-        e.bits = r->bits;
+        e.dim           = r->dim;
+        e.bits          = r->bits;
         e.mse_per_coord = r->mse_per_coord;
         e.mse_total     = r->mse_total;
 
@@ -166,31 +161,28 @@ CodebookRegistry::get(std::uint32_t dim, std::uint32_t bits) noexcept
 // compute(): run Lloyd-Max and cache.
 // -----------------------------------------------------------------------------
 
-Result<CodebookView>
-CodebookRegistry::compute(std::uint32_t dim, std::uint32_t bits,
-                          const LloydMaxOpts& opts) noexcept
-{
+Result<CodebookView> CodebookRegistry::compute(std::uint32_t dim, std::uint32_t bits,
+                                               const LloydMaxOpts& opts) noexcept {
     if (dim == 0 || dim > kMaxDim) return make_error<CodebookView>(Error::InvalidDim);
-    if (bits < 1 || bits > 4)      return make_error<CodebookView>(Error::InvalidBits);
+    if (bits < 1 || bits > 4) return make_error<CodebookView>(Error::InvalidBits);
 
-    auto& im = impl();
-    const std::uint64_t k = Impl::key(dim, bits);
+    auto&               im = impl();
+    const std::uint64_t k  = Impl::key(dim, bits);
 
     {
         std::lock_guard<std::mutex> lg(im.mu);
-        auto it = im.cache.find(k);
+        auto                        it = im.cache.find(k);
         if (it != im.cache.end()) return Result<CodebookView>(im.view_of(it->second));
     }
 
     Impl::Entry e;
-    float mse_pc = 0.0f;
-    if (auto err = compute_lloyd_max_internal(dim, bits, opts,
-                                              e.centroids, e.interior, mse_pc);
+    float       mse_pc = 0.0f;
+    if (auto err = compute_lloyd_max_internal(dim, bits, opts, e.centroids, e.interior, mse_pc);
         !err.has_value()) {
         return make_error<CodebookView>(err.error());
     }
-    e.dim = dim;
-    e.bits = bits;
+    e.dim           = dim;
+    e.bits          = bits;
     e.mse_per_coord = mse_pc;
     e.mse_total     = mse_pc * static_cast<float>(dim);
 
@@ -214,11 +206,9 @@ bool read_file(std::string_view path, std::string& out) noexcept {
     return true;
 }
 
-} // namespace
+}  // namespace
 
-Result<CodebookView>
-CodebookRegistry::load_json(std::string_view path) noexcept
-{
+Result<CodebookView> CodebookRegistry::load_json(std::string_view path) noexcept {
     std::string raw;
     if (!read_file(path, raw)) return make_error<CodebookView>(Error::IoError);
 
@@ -235,8 +225,7 @@ CodebookRegistry::load_json(std::string_view path) noexcept
 
     const auto& jc = j["centroids"];
     const auto& jb = j["boundaries"];
-    if (!jc.is_array() || !jb.is_array())
-        return make_error<CodebookView>(Error::CodebookCorrupt);
+    if (!jc.is_array() || !jb.is_array()) return make_error<CodebookView>(Error::CodebookCorrupt);
 
     std::uint32_t dim, bits;
     if (!j["d"].is_number_unsigned() && !j["d"].is_number_integer())
@@ -248,8 +237,8 @@ CodebookRegistry::load_json(std::string_view path) noexcept
     if (jc.size() != n_clusters || jb.size() != n_clusters + 1)
         return make_error<CodebookView>(Error::CodebookCorrupt);
 
-    if (!jb.front().is_number() || !jb.back().is_number() ||
-        jb.front().get<double>() != -1.0 || jb.back().get<double>() != 1.0) {
+    if (!jb.front().is_number() || !jb.back().is_number() || jb.front().get<double>() != -1.0 ||
+        jb.back().get<double>() != 1.0) {
         return make_error<CodebookView>(Error::CodebookCorrupt);
     }
 
@@ -270,18 +259,18 @@ CodebookRegistry::load_json(std::string_view path) noexcept
             return make_error<CodebookView>(Error::CodebookCorrupt);
     }
 
-    e.dim = dim;
+    e.dim  = dim;
     e.bits = bits;
     if (j.contains("mse_per_coord") && j["mse_per_coord"].is_number())
         e.mse_per_coord = static_cast<float>(j["mse_per_coord"].get<double>());
     if (j.contains("mse_total") && j["mse_total"].is_number())
         e.mse_total = static_cast<float>(j["mse_total"].get<double>());
 
-    auto& im = impl();
-    const std::uint64_t k = Impl::key(dim, bits);
+    auto&                       im = impl();
+    const std::uint64_t         k  = Impl::key(dim, bits);
     std::lock_guard<std::mutex> lg(im.mu);
     auto [it, _] = im.cache.emplace(k, std::move(e));
     return Result<CodebookView>(im.view_of(it->second));
 }
 
-} // namespace tq
+}  // namespace tq

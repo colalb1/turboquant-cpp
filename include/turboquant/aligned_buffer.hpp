@@ -27,14 +27,16 @@ class AlignedBuffer {
     AlignedBuffer(const AlignedBuffer&)            = delete;
     AlignedBuffer& operator=(const AlignedBuffer&) = delete;
 
-    AlignedBuffer(AlignedBuffer&& o) noexcept
-        : data_(o.data_), size_(o.size_) { o.data_ = nullptr; o.size_ = 0; }
+    AlignedBuffer(AlignedBuffer&& o) noexcept : data_(o.data_), size_(o.size_) {
+        o.data_ = nullptr;
+        o.size_ = 0;
+    }
 
     AlignedBuffer& operator=(AlignedBuffer&& o) noexcept {
         if (this != &o) {
             free_();
-            data_ = o.data_;
-            size_ = o.size_;
+            data_   = o.data_;
+            size_   = o.size_;
             o.data_ = nullptr;
             o.size_ = 0;
         }
@@ -46,7 +48,7 @@ class AlignedBuffer {
     [[nodiscard]] bool resize(std::size_t n) noexcept {
         free_();
         if (n == 0) return true;
-        void* p = nullptr;
+        void*             p     = nullptr;
         const std::size_t bytes = n * sizeof(T);
         // posix_memalign rounds up to a multiple of alignment/sizeof(void*).
         const int rc = ::posix_memalign(&p, kCacheLine, bytes);
@@ -57,17 +59,20 @@ class AlignedBuffer {
         return true;
     }
 
-    T*       data()       noexcept { return data_; }
-    const T* data() const noexcept { return data_; }
+    T*          data() noexcept { return data_; }
+    const T*    data() const noexcept { return data_; }
     std::size_t size() const noexcept { return size_; }
-    bool empty() const noexcept { return size_ == 0; }
+    bool        empty() const noexcept { return size_ == 0; }
 
-    T&       operator[](std::size_t i)       noexcept { return data_[i]; }
+    T&       operator[](std::size_t i) noexcept { return data_[i]; }
     const T& operator[](std::size_t i) const noexcept { return data_[i]; }
 
  private:
     void free_() noexcept {
-        if (data_) { std::free(data_); data_ = nullptr; }
+        if (data_) {
+            std::free(data_);
+            data_ = nullptr;
+        }
         size_ = 0;
     }
 
@@ -75,4 +80,4 @@ class AlignedBuffer {
     std::size_t size_ = 0;
 };
 
-} // namespace tq
+}  // namespace tq

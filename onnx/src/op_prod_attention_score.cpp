@@ -26,25 +26,25 @@ namespace tq::onnx {
 namespace {
 
 struct ProdScoreKernel {
-    int           bits;
-    std::uint16_t dim;
-    std::uint32_t seed;
+    int                                      bits;
+    std::uint16_t                            dim;
+    std::uint32_t                            seed;
     std::shared_ptr<const TurboQuantProd<2>> s2;
     std::shared_ptr<const TurboQuantProd<3>> s3;
     std::shared_ptr<const TurboQuantProd<4>> s4;
 
     ProdScoreKernel(const OrtApi& api, const OrtKernelInfo* info) {
         dim  = static_cast<std::uint16_t>(require_int_attr(api, info, "dim"));
-        bits = static_cast<int>         (require_int_attr(api, info, "bits"));
-        seed = static_cast<std::uint32_t>(read_int_attr   (api, info, "seed", 42));
+        bits = static_cast<int>(require_int_attr(api, info, "bits"));
+        seed = static_cast<std::uint32_t>(read_int_attr(api, info, "seed", 42));
         if (bits < 2 || bits > 4)
             ORT_CXX_API_THROW("Prod_AttnScore: bits must be in [2,4]", ORT_INVALID_ARGUMENT);
 
-        const StateKey k{ CodecId::Prod, dim, static_cast<std::uint8_t>(bits), seed };
+        const StateKey k{CodecId::Prod, dim, static_cast<std::uint8_t>(bits), seed};
         switch (bits) {
-            case 2: s2 = get_state<TurboQuantProd<2>>(k); break;
-            case 3: s3 = get_state<TurboQuantProd<3>>(k); break;
-            case 4: s4 = get_state<TurboQuantProd<4>>(k); break;
+        case 2: s2 = get_state<TurboQuantProd<2>>(k); break;
+        case 3: s3 = get_state<TurboQuantProd<3>>(k); break;
+        case 4: s4 = get_state<TurboQuantProd<4>>(k); break;
         }
         if (!(s2 || s3 || s4))
             ORT_CXX_API_THROW("Prod_AttnScore: state init failed", ORT_RUNTIME_EXCEPTION);
@@ -52,25 +52,26 @@ struct ProdScoreKernel {
 
     std::size_t mse_pb() const noexcept {
         switch (bits) {
-            case 2: return PackPolicy<1>::packed_bytes(dim);
-            case 3: return PackPolicy<2>::packed_bytes(dim);
-            case 4: return PackPolicy<3>::packed_bytes(dim);
+        case 2: return PackPolicy<1>::packed_bytes(dim);
+        case 3: return PackPolicy<2>::packed_bytes(dim);
+        case 4: return PackPolicy<3>::packed_bytes(dim);
         }
         return 0;
     }
 
     void Compute(OrtKernelContext* context) {
         Ort::KernelContext ctx(context);
-        auto q   = ctx.GetInput(0);
-        auto mse = ctx.GetInput(1);
-        auto qjl = ctx.GetInput(2);
-        auto rnm = ctx.GetInput(3);
-        auto nrm = ctx.GetInput(4);
+        auto               q   = ctx.GetInput(0);
+        auto               mse = ctx.GetInput(1);
+        auto               qjl = ctx.GetInput(2);
+        auto               rnm = ctx.GetInput(3);
+        auto               nrm = ctx.GetInput(4);
 
         auto q_shape = q.GetTensorTypeAndShapeInfo().GetShape();
         auto n_shape = nrm.GetTensorTypeAndShapeInfo().GetShape();
         if (q_shape.empty() || n_shape.empty())
-            ORT_CXX_API_THROW("Prod_AttnScore: inputs must be rank-2 or higher", ORT_INVALID_ARGUMENT);
+            ORT_CXX_API_THROW("Prod_AttnScore: inputs must be rank-2 or higher",
+                              ORT_INVALID_ARGUMENT);
         if (q_shape.back() != static_cast<std::int64_t>(dim))
             ORT_CXX_API_THROW("Prod_AttnScore: query last dim != attr dim", ORT_INVALID_ARGUMENT);
 
@@ -95,9 +96,18 @@ struct ProdScoreKernel {
 
         Error e = Error::NotImplemented;
         switch (bits) {
-            case 2: e = s2->attention_score({q_p,n_q*dim}, n_q, {m_p,n_k*mb},{qj_p,n_k*qb},{r_p,n_k},{n_p,n_k}, n_k, {sc_p,n_q*n_k}); break;
-            case 3: e = s3->attention_score({q_p,n_q*dim}, n_q, {m_p,n_k*mb},{qj_p,n_k*qb},{r_p,n_k},{n_p,n_k}, n_k, {sc_p,n_q*n_k}); break;
-            case 4: e = s4->attention_score({q_p,n_q*dim}, n_q, {m_p,n_k*mb},{qj_p,n_k*qb},{r_p,n_k},{n_p,n_k}, n_k, {sc_p,n_q*n_k}); break;
+        case 2:
+            e = s2->attention_score({q_p, n_q * dim}, n_q, {m_p, n_k * mb}, {qj_p, n_k * qb},
+                                    {r_p, n_k}, {n_p, n_k}, n_k, {sc_p, n_q * n_k});
+            break;
+        case 3:
+            e = s3->attention_score({q_p, n_q * dim}, n_q, {m_p, n_k * mb}, {qj_p, n_k * qb},
+                                    {r_p, n_k}, {n_p, n_k}, n_k, {sc_p, n_q * n_k});
+            break;
+        case 4:
+            e = s4->attention_score({q_p, n_q * dim}, n_q, {m_p, n_k * mb}, {qj_p, n_k * qb},
+                                    {r_p, n_k}, {n_p, n_k}, n_k, {sc_p, n_q * n_k});
+            break;
         }
         if (e != Error::Ok)
             ORT_CXX_API_THROW("Prod_AttnScore: core score failed", ORT_RUNTIME_EXCEPTION);
@@ -105,15 +115,15 @@ struct ProdScoreKernel {
 };
 
 struct ProdScoreOp : Ort::CustomOpBase<ProdScoreOp, ProdScoreKernel> {
-    const char* GetName() const noexcept                    { return "TurboQuantProd_AttentionScore"; }
-    const char* GetExecutionProviderType() const noexcept   { return "CPUExecutionProvider"; }
-    std::size_t GetInputTypeCount() const noexcept          { return 5; }
+    const char* GetName() const noexcept { return "TurboQuantProd_AttentionScore"; }
+    const char* GetExecutionProviderType() const noexcept { return "CPUExecutionProvider"; }
+    std::size_t GetInputTypeCount() const noexcept { return 5; }
     ONNXTensorElementDataType GetInputType(std::size_t i) const noexcept {
         if (i == 0) return ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT;
         if (i == 1 || i == 2) return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8;
         return ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT;
     }
-    std::size_t GetOutputTypeCount() const noexcept         { return 1; }
+    std::size_t               GetOutputTypeCount() const noexcept { return 1; }
     ONNXTensorElementDataType GetOutputType(std::size_t) const noexcept {
         return ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT;
     }
@@ -122,11 +132,11 @@ struct ProdScoreOp : Ort::CustomOpBase<ProdScoreOp, ProdScoreKernel> {
     }
 };
 
-} // namespace
+}  // namespace
 
 const OrtCustomOp* get_prod_attention_score_op() noexcept {
     static const ProdScoreOp op;
     return &op;
 }
 
-} // namespace tq::onnx
+}  // namespace tq::onnx

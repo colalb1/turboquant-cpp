@@ -20,22 +20,21 @@ namespace tq::onnx {
 // single static instances returned by get_*_op() getters. This keeps
 // the registration table in one place without inlining each op's
 // schema into this TU.
-const OrtCustomOp* get_mse_quantize_op()        noexcept;
-const OrtCustomOp* get_mse_dequantize_op()      noexcept;
-const OrtCustomOp* get_prod_quantize_op()       noexcept;
-const OrtCustomOp* get_prod_dequantize_op()     noexcept;
+const OrtCustomOp* get_mse_quantize_op() noexcept;
+const OrtCustomOp* get_mse_dequantize_op() noexcept;
+const OrtCustomOp* get_prod_quantize_op() noexcept;
+const OrtCustomOp* get_prod_dequantize_op() noexcept;
 const OrtCustomOp* get_prod_attention_score_op() noexcept;
-const OrtCustomOp* get_value_quantize_op()      noexcept;
-const OrtCustomOp* get_value_dequantize_op()    noexcept;
+const OrtCustomOp* get_value_quantize_op() noexcept;
+const OrtCustomOp* get_value_dequantize_op() noexcept;
 
-} // namespace tq::onnx
+}  // namespace tq::onnx
 
-extern "C" OrtStatus* ORT_API_CALL
-RegisterCustomOps(OrtSessionOptions* options, const OrtApiBase* api) noexcept
-{
+extern "C" OrtStatus* ORT_API_CALL RegisterCustomOps(OrtSessionOptions* options,
+                                                     const OrtApiBase*  api) noexcept {
     Ort::InitApi(api->GetApi(ORT_API_VERSION));
 
-    OrtStatus* status = nullptr;
+    OrtStatus*         status = nullptr;
     OrtCustomOpDomain* domain = nullptr;
 
     const OrtApi& ort = Ort::GetApi();
@@ -44,12 +43,9 @@ RegisterCustomOps(OrtSessionOptions* options, const OrtApiBase* api) noexcept
     if (status != nullptr) return status;
 
     const OrtCustomOp* ops[] = {
-        tq::onnx::get_mse_quantize_op(),
-        tq::onnx::get_mse_dequantize_op(),
-        tq::onnx::get_prod_quantize_op(),
-        tq::onnx::get_prod_dequantize_op(),
-        tq::onnx::get_prod_attention_score_op(),
-        tq::onnx::get_value_quantize_op(),
+        tq::onnx::get_mse_quantize_op(),         tq::onnx::get_mse_dequantize_op(),
+        tq::onnx::get_prod_quantize_op(),        tq::onnx::get_prod_dequantize_op(),
+        tq::onnx::get_prod_attention_score_op(), tq::onnx::get_value_quantize_op(),
         tq::onnx::get_value_dequantize_op(),
     };
 

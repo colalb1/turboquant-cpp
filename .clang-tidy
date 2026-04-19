@@ -1,0 +1,158 @@
+# Production .clang-tidy for turboquant-cpp.
+#
+# Check selection is aligned to CPP_IMPLEMENTATION_RULES.md:
+#   - performance-*              — hot-path hygiene (rule 1, 8, 9)
+#   - bugprone-*                 — catches common correctness pitfalls
+#   - cppcoreguidelines-*        — baseline C++20 best practices
+#   - modernize-*                — nudges older patterns to modern C++
+#   - portability-*              — no host-specific footguns
+#   - readability-*              — consistent style, intent-clear code
+#   - misc-*                     — additional dataflow / interface checks
+#   - clang-analyzer-*           — defaults on, kept explicit
+#
+# Opt-outs (with rationale inline):
+#   * trailing-return-type:       codebase uses leading-type style.
+#   * avoid-magic-numbers / magic-numbers:
+#                                 NEON lane indices (0..7), pack widths,
+#                                 and sentinel epsilons are intentional.
+#   * avoid-c-arrays:             embedded codebook tables are C arrays
+#                                 on purpose (POD, generated).
+#   * pro-bounds-pointer-arithmetic / constant-array-index:
+#                                 SIMD kernels do ptr math on spans.
+#   * pro-type-reinterpret-cast:  NEON intrinsics + AlignedBuffer casts.
+#   * pro-type-union-access:      Result<T> / optional-like layouts.
+#   * owning-memory:              AlignedBuffer is a RAII owner.
+#   * function-cognitive-complexity / function-size:
+#                                 SIMD kernels are large by design; we
+#                                 review them by hand, not by count.
+#   * identifier-length:          short names (d, n, i, b) are canonical
+#                                 in math-heavy code and already reviewed.
+#   * special-member-functions / non-private-member-variables-in-classes:
+#                                 opinionated noise for SoA structs.
+#   * use-nodiscard:              noisy on void-returning mutators and
+#                                 trivial accessors; selectively applied
+#                                 at the public API layer instead.
+#   * readability-named-parameter / misc-unused-parameters:
+#                                 Ort::CustomOpBase overrides take unused
+#                                 `i` / `info` by convention.
+#   * fuchsia-*, altera-*, llvmlibc-*, abseil-*:
+#                                 out-of-scope opinionated linters.
+#   * hicpp-*:                    mostly aliases of other checks.
+#
+# Header filter: only our code (include/turboquant/**, src/**, onnx/**,
+# bench/**, tests/**). FetchContent deps and system headers are skipped.
+
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+
+  cert-*,
+  -cert-err58-cpp,
+  -cert-dcl21-cpp,
+
+  clang-analyzer-*,
+
+  concurrency-*,
+
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-type-union-access,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-special-member-functions,
+
+  misc-*,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -misc-no-recursion,
+  -misc-use-anonymous-namespace,
+
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-use-nodiscard,
+
+  performance-*,
+
+  portability-*,
+
+  readability-*,
+  -readability-avoid-const-params-in-decls,
+  -readability-function-cognitive-complexity,
+  -readability-function-size,
+  -readability-identifier-length,
+  -readability-implicit-bool-conversion,
+  -readability-magic-numbers,
+  -readability-named-parameter,
+  -readability-uppercase-literal-suffix
+
+WarningsAsErrors: ""
+
+HeaderFilterRegex: "^(.*/)?(include/turboquant|src|onnx/include|onnx/src|bench|tests/unit|tests/onnx|tests/parity|tests/theorems)/"
+
+FormatStyle: file
+
+CheckOptions:
+  # C++ naming aligned to the existing style:
+  #   - types (classes, structs, enums, unions):  PascalCase
+  #   - functions / methods / variables:           snake_case
+  #   - constants / constexpr / enum constants:    kCamelCase
+  #   - private/protected members:                 snake_case_ (trailing _)
+  #   - macros:                                    UPPER_CASE
+  #   - template parameter types:                  PascalCase
+  #   - namespaces:                                lowercase
+  readability-identifier-naming.ClassCase:                 CamelCase
+  readability-identifier-naming.StructCase:                CamelCase
+  readability-identifier-naming.EnumCase:                  CamelCase
+  readability-identifier-naming.UnionCase:                 CamelCase
+  readability-identifier-naming.TypeAliasCase:             CamelCase
+  readability-identifier-naming.TypedefCase:               CamelCase
+  readability-identifier-naming.FunctionCase:              lower_case
+  readability-identifier-naming.MethodCase:                lower_case
+  readability-identifier-naming.VariableCase:              lower_case
+  readability-identifier-naming.ParameterCase:             lower_case
+  readability-identifier-naming.PrivateMemberSuffix:       _
+  readability-identifier-naming.ProtectedMemberSuffix:     _
+  readability-identifier-naming.ConstexprVariableCase:     CamelCase
+  readability-identifier-naming.ConstexprVariablePrefix:   k
+  readability-identifier-naming.GlobalConstantCase:        CamelCase
+  readability-identifier-naming.GlobalConstantPrefix:      k
+  readability-identifier-naming.EnumConstantCase:          CamelCase
+  readability-identifier-naming.MacroDefinitionCase:       UPPER_CASE
+  readability-identifier-naming.NamespaceCase:             lower_case
+  readability-identifier-naming.TemplateParameterCase:     CamelCase
+
+  # Don't flag the Ort:: OrtCustomOp API overrides for `GetName` etc.
+  readability-identifier-naming.IgnoreMainLikeFunctions:   true
+
+  # Allow `return {}` and `= default;` on C-interop structs (OrtCustomOp).
+  cppcoreguidelines-pro-type-member-init.IgnoreArrays: true
+
+  # Performance checks — favor hot-path ergonomics.
+  performance-move-const-arg.CheckTriviallyCopyableMove:   false
+  performance-unnecessary-value-param.AllowedTypes:        "std::span;Error;tq::Error"
+  performance-for-range-copy.AllowedTypes:                 "std::span;tq::Error"
+
+  # Modernize tweaks.
+  modernize-use-default-member-init.UseAssignment:         true
+  modernize-make-shared.IncludeStyle:                      llvm
+  modernize-make-unique.IncludeStyle:                      llvm
+
+  # Readability.
+  readability-braces-around-statements.ShortStatementLines: 2
+  readability-simplify-boolean-expr.ChainedConditionalReturn: true
+  readability-simplify-boolean-expr.ChainedConditionalAssignment: true
+
+  # Bugprone configuration — fewer false positives in codec code.
+  bugprone-argument-comment.StrictMode:                    false
+  bugprone-sizeof-expression.WarnOnSizeOfIntegerExpression: true
+  bugprone-suspicious-string-compare.WarnOnLogicalNotComparison: true
+  bugprone-narrowing-conversions.WarnOnIntegerNarrowingConversion: false
+  bugprone-unused-return-value.CheckedFunctions: "::std::async;::std::launder;::std::remove;::std::remove_if;::std::unique"

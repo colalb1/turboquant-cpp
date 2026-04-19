@@ -63,8 +63,7 @@ void bench_prod_quantize(benchmark::State& state) {
     tq::bench::fill_gaussian(x, 0xC0DE0002);
 
     for (auto _ : state) {
-        tq::Error e = q.quantize(x, batch, mse_indices, qjl_signs,
-                                 residual_norms, norms);
+        tq::Error e = q.quantize(x, batch, mse_indices, qjl_signs, residual_norms, norms);
         benchmark::DoNotOptimize(e);
         benchmark::DoNotOptimize(mse_indices.data());
         benchmark::DoNotOptimize(qjl_signs.data());
@@ -85,7 +84,7 @@ void quant_args(benchmark::internal::Benchmark* b) {
     }
 }
 
-} // namespace
+}  // namespace
 
 BENCHMARK(bench_mse_quantize<1>)->Apply(quant_args)->Name("MSE_Quantize/b=1");
 BENCHMARK(bench_mse_quantize<2>)->Apply(quant_args)->Name("MSE_Quantize/b=2");

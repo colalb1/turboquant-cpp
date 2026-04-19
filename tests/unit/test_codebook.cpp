@@ -28,7 +28,7 @@ TEST_CASE("CodebookRegistry::find_embedded returns bundled blobs", "[codebook]")
     for (const auto& b : tq::embedded_codebooks()) {
         auto v = reg.find_embedded(b.dim, b.bits);
         REQUIRE(v.has_value());
-        REQUIRE(v->dim  == b.dim);
+        REQUIRE(v->dim == b.dim);
         REQUIRE(v->bits == b.bits);
         const std::size_t n_cl = std::size_t{1} << b.bits;
         REQUIRE(v->centroids.size() == n_cl);
@@ -40,7 +40,7 @@ TEST_CASE("CodebookRegistry::find_embedded returns bundled blobs", "[codebook]")
         // Interior boundaries must be strictly inside (-1, 1).
         for (float x : v->decision_boundaries) {
             REQUIRE(x > -1.0f);
-            REQUIRE(x <  1.0f);
+            REQUIRE(x < 1.0f);
         }
     }
 }
@@ -64,13 +64,8 @@ TEST_CASE("get() matches find_embedded() for bundled (d, bits)", "[codebook]") {
 TEST_CASE("decision_boundaries match bundled JSON for d=128, b=3", "[codebook]") {
     // From codebook_d128_b3.json — the boundaries[1:-1] interior slice.
     const std::array<float, 7> expected = {
-        -0.1532617987505358f,
-        -0.09235678950747524f,
-        -0.04409153199159803f,
-         0.0f,
-         0.04409153199159803f,
-         0.09235678950747524f,
-         0.1532617987505358f,
+        -0.1532617987505358f, -0.09235678950747524f, -0.04409153199159803f, 0.0f,
+        0.04409153199159803f, 0.09235678950747524f,  0.1532617987505358f,
     };
     auto v = tq::CodebookRegistry::instance().find_embedded(128, 3);
     REQUIRE(v.has_value());

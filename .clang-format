@@ -1,0 +1,113 @@
+# Production .clang-format for turboquant-cpp.
+#
+# Baseline: LLVM style, adapted to match the pre-existing code:
+#   - 4-space indent, no tabs
+#   - 100-column soft limit
+#   - east/west-const: existing code uses west-const (const T*), keep it
+#   - pointer/reference stuck to the type (left-aligned)
+#   - columnar alignment of declarations/assignments — the original code
+#     relies on this for readable wide signatures (AlignConsecutive*)
+#   - include blocks preserved (own-header, project, system) and sorted
+#     case-insensitively within each block
+#   - namespace comments auto-fixed on close
+#
+# ColumnLimit of 100 occasionally reflows a long NEON intrinsic line;
+# the AlignAfterOpenBracket and ContinuationIndentWidth below keep those
+# wrapped lines readable.
+
+Language: Cpp
+Standard: c++20
+BasedOnStyle: LLVM
+
+# ---- whitespace & layout ----
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+ContinuationIndentWidth: 4
+MaxEmptyLinesToKeep: 2
+
+AccessModifierOffset: -3
+NamespaceIndentation: None
+IndentCaseLabels: false
+IndentPPDirectives: None
+IndentRequiresClause: true
+
+# ---- braces ----
+BreakBeforeBraces: Attach
+InsertBraces: false
+Cpp11BracedListStyle: true
+
+# ---- function / call formatting ----
+AlignAfterOpenBracket: Align
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortLambdasOnASingleLine: All
+AllowShortBlocksOnASingleLine: Empty
+BinPackArguments: true
+BinPackParameters: true
+
+# Keep `Error quantize(...) const noexcept` readable when it wraps.
+AlwaysBreakAfterReturnType: None
+AlwaysBreakTemplateDeclarations: Yes
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: NextLine
+
+# ---- pointer / reference ----
+PointerAlignment: Left
+ReferenceAlignment: Left
+DerivePointerAlignment: false
+QualifierAlignment: Leave
+
+# ---- alignment (preserves the columnar parameter lists in src/) ----
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCompound: true
+  PadOperators: true
+AlignConsecutiveDeclarations:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+AlignConsecutiveMacros:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 0
+AlignOperands: AlignAfterOperator
+AlignArrayOfStructures: Left
+
+# ---- includes ----
+IncludeBlocks: Preserve
+SortIncludes: CaseInsensitive
+
+# ---- misc ----
+FixNamespaceComments: true
+ShortNamespaceLines: 0
+CompactNamespaces: false
+ReflowComments: true
+SpacesBeforeTrailingComments: 2
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpacesInAngles: Never
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# ---- C++ specific ----
+EmptyLineBeforeAccessModifier: LogicalBlock
+LambdaBodyIndentation: Signature
+RequiresClausePosition: OwnLine
+BreakBeforeConceptDeclarations: Always

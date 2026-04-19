@@ -34,12 +34,11 @@ void bench_rotation_forward(benchmark::State& state) {
 
     const std::int64_t flops_per_iter =
         2 * static_cast<std::int64_t>(batch) * static_cast<std::int64_t>(dim) * dim;
-    state.counters["GFLOP/s"] = benchmark::Counter(
-        static_cast<double>(flops_per_iter),
-        benchmark::Counter::kIsIterationInvariantRate,
-        benchmark::Counter::kIs1000);
-    state.SetBytesProcessed(static_cast<std::int64_t>(batch * dim * sizeof(float))
-                            * state.iterations());
+    state.counters["GFLOP/s"] = benchmark::Counter(static_cast<double>(flops_per_iter),
+                                                   benchmark::Counter::kIsIterationInvariantRate,
+                                                   benchmark::Counter::kIs1000);
+    state.SetBytesProcessed(static_cast<std::int64_t>(batch * dim * sizeof(float)) *
+                            state.iterations());
     state.SetItemsProcessed(static_cast<std::int64_t>(batch) * state.iterations());
 }
 
@@ -52,6 +51,6 @@ void rotation_args(benchmark::internal::Benchmark* b) {
     }
 }
 
-} // namespace
+}  // namespace
 
 BENCHMARK(bench_rotation_forward)->Apply(rotation_args)->Name("Rotation_Forward");

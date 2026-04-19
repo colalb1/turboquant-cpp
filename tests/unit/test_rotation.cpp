@@ -16,8 +16,7 @@ using Catch::Matchers::WithinRel;
 namespace {
 
 // Compute ||Pi * Pi^T - I||_F^2. For an orthogonal matrix this is 0.
-double orthogonality_error(std::span<const float> pi, std::size_t d)
-{
+double orthogonality_error(std::span<const float> pi, std::size_t d) {
     double worst = 0.0;
     for (std::size_t i = 0; i < d; ++i) {
         for (std::size_t j = 0; j < d; ++j) {
@@ -26,13 +25,13 @@ double orthogonality_error(std::span<const float> pi, std::size_t d)
                 dot += static_cast<double>(pi[i * d + k]) * pi[j * d + k];
             }
             const double target = (i == j) ? 1.0 : 0.0;
-            worst = std::max(worst, std::fabs(dot - target));
+            worst               = std::max(worst, std::fabs(dot - target));
         }
     }
     return worst;
 }
 
-} // namespace
+}  // namespace
 
 TEST_CASE("Rotation::make produces an orthogonal matrix", "[rotation]") {
     for (std::size_t d : {64u, 128u, 256u}) {
@@ -48,8 +47,8 @@ TEST_CASE("Rotation::make produces an orthogonal matrix", "[rotation]") {
 
 TEST_CASE("Rotation::make is deterministic for a fixed seed", "[rotation]") {
     const std::size_t d = 128;
-    auto a = tq::Rotation::make(d, 42);
-    auto b = tq::Rotation::make(d, 42);
+    auto              a = tq::Rotation::make(d, 42);
+    auto              b = tq::Rotation::make(d, 42);
     REQUIRE(a.has_value());
     REQUIRE(b.has_value());
     auto ma = a->matrix();
@@ -64,22 +63,22 @@ TEST_CASE("Rotation::make is deterministic for a fixed seed", "[rotation]") {
 
 TEST_CASE("Rotation::make differs across seeds", "[rotation]") {
     const std::size_t d = 128;
-    auto a = tq::Rotation::make(d, 42);
-    auto b = tq::Rotation::make(d, 43);
+    auto              a = tq::Rotation::make(d, 42);
+    auto              b = tq::Rotation::make(d, 43);
     REQUIRE(a.has_value());
     REQUIRE(b.has_value());
-    auto ma = a->matrix();
-    auto mb = b->matrix();
+    auto        ma   = a->matrix();
+    auto        mb   = b->matrix();
     std::size_t diff = 0;
-    for (std::size_t i = 0; i < ma.size(); ++i) if (ma[i] != mb[i]) ++diff;
+    for (std::size_t i = 0; i < ma.size(); ++i)
+        if (ma[i] != mb[i]) ++diff;
     REQUIRE(diff > ma.size() / 2);
 }
 
-TEST_CASE("Rotation::forward / backward round-trip preserves the vector",
-          "[rotation]") {
-    const std::size_t d = 128;
+TEST_CASE("Rotation::forward / backward round-trip preserves the vector", "[rotation]") {
+    const std::size_t d     = 128;
     const std::size_t batch = 4;
-    auto r = tq::Rotation::make(d, 42);
+    auto              r     = tq::Rotation::make(d, 42);
     REQUIRE(r.has_value());
 
     std::vector<float> x(batch * d), y(batch * d), x2(batch * d);
@@ -96,18 +95,18 @@ TEST_CASE("Rotation::forward / backward round-trip preserves the vector",
     }
 }
 
-TEST_CASE("Rotation::from_matrix round-trips via forward/backward",
-          "[rotation][fixture]") {
-    const std::size_t d = 64;
-    auto src = tq::Rotation::make(d, 7);
+TEST_CASE("Rotation::from_matrix round-trips via forward/backward", "[rotation][fixture]") {
+    const std::size_t d   = 64;
+    auto              src = tq::Rotation::make(d, 7);
     REQUIRE(src.has_value());
 
     std::vector<float> pi_copy(src->matrix().begin(), src->matrix().end());
-    auto loaded = tq::Rotation::from_matrix(pi_copy, d);
+    auto               loaded = tq::Rotation::from_matrix(pi_copy, d);
     REQUIRE(loaded.has_value());
 
     std::vector<float> x(d), y_src(d), y_lo(d);
-    for (std::size_t i = 0; i < d; ++i) x[i] = std::sin(0.1f * i);
+    for (std::size_t i = 0; i < d; ++i)
+        x[i] = std::sin(0.1f * i);
 
     REQUIRE(src->forward(x, y_src, 1) == tq::Error::Ok);
     REQUIRE(loaded->forward(x, y_lo, 1) == tq::Error::Ok);

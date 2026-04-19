@@ -32,52 +32,47 @@ namespace tq {
 inline constexpr std::size_t MIN_HISTORY_FOR_TQ = 16;
 
 template <int KeyBits, int ValBits>
-Error compute_hybrid_attention(
-    std::span<const float>               query,
-    std::size_t                          n_q_tokens,
-    std::size_t                          num_query_heads,
-    CompressedKVStore<KeyBits, ValBits>& store,
-    std::span<const float>               recent_k,
-    std::span<const float>               recent_v,
-    std::size_t                          n_recent,
-    float                                scale,
-    std::span<float>                     out) noexcept;
+Error compute_hybrid_attention(std::span<const float> query, std::size_t n_q_tokens,
+                               std::size_t                          num_query_heads,
+                               CompressedKVStore<KeyBits, ValBits>& store,
+                               std::span<const float> recent_k, std::span<const float> recent_v,
+                               std::size_t n_recent, float scale, std::span<float> out) noexcept;
 
-extern template Error compute_hybrid_attention<2, 2>(
-    std::span<const float>, std::size_t, std::size_t,
-    CompressedKVStore<2, 2>&, std::span<const float>, std::span<const float>,
-    std::size_t, float, std::span<float>) noexcept;
-extern template Error compute_hybrid_attention<3, 2>(
-    std::span<const float>, std::size_t, std::size_t,
-    CompressedKVStore<3, 2>&, std::span<const float>, std::span<const float>,
-    std::size_t, float, std::span<float>) noexcept;
-extern template Error compute_hybrid_attention<4, 2>(
-    std::span<const float>, std::size_t, std::size_t,
-    CompressedKVStore<4, 2>&, std::span<const float>, std::span<const float>,
-    std::size_t, float, std::span<float>) noexcept;
-extern template Error compute_hybrid_attention<2, 4>(
-    std::span<const float>, std::size_t, std::size_t,
-    CompressedKVStore<2, 4>&, std::span<const float>, std::span<const float>,
-    std::size_t, float, std::span<float>) noexcept;
-extern template Error compute_hybrid_attention<3, 4>(
-    std::span<const float>, std::size_t, std::size_t,
-    CompressedKVStore<3, 4>&, std::span<const float>, std::span<const float>,
-    std::size_t, float, std::span<float>) noexcept;
-extern template Error compute_hybrid_attention<4, 4>(
-    std::span<const float>, std::size_t, std::size_t,
-    CompressedKVStore<4, 4>&, std::span<const float>, std::span<const float>,
-    std::size_t, float, std::span<float>) noexcept;
-extern template Error compute_hybrid_attention<2, 8>(
-    std::span<const float>, std::size_t, std::size_t,
-    CompressedKVStore<2, 8>&, std::span<const float>, std::span<const float>,
-    std::size_t, float, std::span<float>) noexcept;
-extern template Error compute_hybrid_attention<3, 8>(
-    std::span<const float>, std::size_t, std::size_t,
-    CompressedKVStore<3, 8>&, std::span<const float>, std::span<const float>,
-    std::size_t, float, std::span<float>) noexcept;
-extern template Error compute_hybrid_attention<4, 8>(
-    std::span<const float>, std::size_t, std::size_t,
-    CompressedKVStore<4, 8>&, std::span<const float>, std::span<const float>,
-    std::size_t, float, std::span<float>) noexcept;
+extern template Error compute_hybrid_attention<2, 2>(std::span<const float>, std::size_t,
+                                                     std::size_t, CompressedKVStore<2, 2>&,
+                                                     std::span<const float>, std::span<const float>,
+                                                     std::size_t, float, std::span<float>) noexcept;
+extern template Error compute_hybrid_attention<3, 2>(std::span<const float>, std::size_t,
+                                                     std::size_t, CompressedKVStore<3, 2>&,
+                                                     std::span<const float>, std::span<const float>,
+                                                     std::size_t, float, std::span<float>) noexcept;
+extern template Error compute_hybrid_attention<4, 2>(std::span<const float>, std::size_t,
+                                                     std::size_t, CompressedKVStore<4, 2>&,
+                                                     std::span<const float>, std::span<const float>,
+                                                     std::size_t, float, std::span<float>) noexcept;
+extern template Error compute_hybrid_attention<2, 4>(std::span<const float>, std::size_t,
+                                                     std::size_t, CompressedKVStore<2, 4>&,
+                                                     std::span<const float>, std::span<const float>,
+                                                     std::size_t, float, std::span<float>) noexcept;
+extern template Error compute_hybrid_attention<3, 4>(std::span<const float>, std::size_t,
+                                                     std::size_t, CompressedKVStore<3, 4>&,
+                                                     std::span<const float>, std::span<const float>,
+                                                     std::size_t, float, std::span<float>) noexcept;
+extern template Error compute_hybrid_attention<4, 4>(std::span<const float>, std::size_t,
+                                                     std::size_t, CompressedKVStore<4, 4>&,
+                                                     std::span<const float>, std::span<const float>,
+                                                     std::size_t, float, std::span<float>) noexcept;
+extern template Error compute_hybrid_attention<2, 8>(std::span<const float>, std::size_t,
+                                                     std::size_t, CompressedKVStore<2, 8>&,
+                                                     std::span<const float>, std::span<const float>,
+                                                     std::size_t, float, std::span<float>) noexcept;
+extern template Error compute_hybrid_attention<3, 8>(std::span<const float>, std::size_t,
+                                                     std::size_t, CompressedKVStore<3, 8>&,
+                                                     std::span<const float>, std::span<const float>,
+                                                     std::size_t, float, std::span<float>) noexcept;
+extern template Error compute_hybrid_attention<4, 8>(std::span<const float>, std::size_t,
+                                                     std::size_t, CompressedKVStore<4, 8>&,
+                                                     std::span<const float>, std::span<const float>,
+                                                     std::size_t, float, std::span<float>) noexcept;
 
-} // namespace tq
+}  // namespace tq

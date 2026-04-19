@@ -28,28 +28,26 @@ namespace tq {
 
 template <int Bits, ArchTag Arch = arch::Scalar>
 class TurboQuantProd {
-    static_assert(Bits >= 2 && Bits <= 4,
-                  "Prod quantizer needs >=2 bits (1 MSE + 1 QJL)");
+    static_assert(Bits >= 2 && Bits <= 4, "Prod quantizer needs >=2 bits (1 MSE + 1 QJL)");
 
  public:
     static constexpr int mse_bits = Bits - 1;
-    using MSE  = TurboQuantMSE<mse_bits, Arch>;
-    using Pack = typename MSE::Pack;
+    using MSE                     = TurboQuantMSE<mse_bits, Arch>;
+    using Pack                    = typename MSE::Pack;
 
-    TurboQuantProd() = default;
-    TurboQuantProd(const TurboQuantProd&)            = delete;
-    TurboQuantProd& operator=(const TurboQuantProd&) = delete;
-    TurboQuantProd(TurboQuantProd&&) noexcept        = default;
+    TurboQuantProd()                                     = default;
+    TurboQuantProd(const TurboQuantProd&)                = delete;
+    TurboQuantProd& operator=(const TurboQuantProd&)     = delete;
+    TurboQuantProd(TurboQuantProd&&) noexcept            = default;
     TurboQuantProd& operator=(TurboQuantProd&&) noexcept = default;
 
-    [[nodiscard]] TQ_API static Result<TurboQuantProd>
-    make(std::size_t dim, std::uint32_t seed) noexcept;
+    [[nodiscard]] TQ_API static Result<TurboQuantProd> make(std::size_t   dim,
+                                                            std::uint32_t seed) noexcept;
 
     // Stage-1 rotation supplied externally; Stage-2 QJL matrix S generated
     // from (seed + 1000). Used by parity fixtures.
     [[nodiscard]] TQ_API static Result<TurboQuantProd>
-    from_matrices(std::span<const float> pi_row_major,
-                  std::span<const float> s_row_major,
+    from_matrices(std::span<const float> pi_row_major, std::span<const float> s_row_major,
                   std::size_t dim) noexcept;
 
     // Layout of outputs:
@@ -57,34 +55,28 @@ class TurboQuantProd {
     //   qjl_signs_out     : batch * QJLPack::packed_bytes(dim)
     //   residual_norms_out: batch
     //   norms_out         : batch
-    [[nodiscard]] TQ_API Error
-    quantize(std::span<const float> x, std::size_t batch,
-             std::span<std::uint8_t> mse_indices_out,
-             std::span<std::uint8_t> qjl_signs_out,
-             std::span<float>        residual_norms_out,
-             std::span<float>        norms_out) const noexcept;
+    [[nodiscard]] TQ_API Error quantize(std::span<const float> x, std::size_t batch,
+                                        std::span<std::uint8_t> mse_indices_out,
+                                        std::span<std::uint8_t> qjl_signs_out,
+                                        std::span<float>        residual_norms_out,
+                                        std::span<float>        norms_out) const noexcept;
 
-    [[nodiscard]] TQ_API Error
-    dequantize(std::span<const std::uint8_t> mse_indices,
-               std::span<const std::uint8_t> qjl_signs,
-               std::span<const float>        residual_norms,
-               std::span<const float>        norms,
-               std::size_t                   batch,
-               std::span<float>              x_out) const noexcept;
+    [[nodiscard]] TQ_API Error dequantize(std::span<const std::uint8_t> mse_indices,
+                                          std::span<const std::uint8_t> qjl_signs,
+                                          std::span<const float>        residual_norms,
+                                          std::span<const float> norms, std::size_t batch,
+                                          std::span<float> x_out) const noexcept;
 
     // Attention score: scores[q, k] = <query[q], key[k]> (asymmetric).
     //   query     : n_q * dim (row-major)
     //   keys      : ProdQuantized view (batch = n_k)
     //   scores_out: n_q * n_k (row-major)
-    [[nodiscard]] TQ_API Error
-    attention_score(std::span<const float>        query,
-                    std::size_t                   n_q,
-                    std::span<const std::uint8_t> key_mse_indices,
-                    std::span<const std::uint8_t> key_qjl_signs,
-                    std::span<const float>        key_residual_norms,
-                    std::span<const float>        key_norms,
-                    std::size_t                   n_k,
-                    std::span<float>              scores_out) const noexcept;
+    [[nodiscard]] TQ_API Error attention_score(std::span<const float> query, std::size_t n_q,
+                                               std::span<const std::uint8_t> key_mse_indices,
+                                               std::span<const std::uint8_t> key_qjl_signs,
+                                               std::span<const float>        key_residual_norms,
+                                               std::span<const float> key_norms, std::size_t n_k,
+                                               std::span<float> scores_out) const noexcept;
 
     static constexpr std::size_t mse_packed_bytes(std::size_t d) noexcept {
         return Pack::packed_bytes(d);
@@ -97,9 +89,9 @@ class TurboQuantProd {
 
     // Accessors for tests.
     std::span<const float> s_matrix() const noexcept {
-        return { s_.data(), static_cast<std::size_t>(dim_ * dim_) };
+        return {s_.data(), static_cast<std::size_t>(dim_ * dim_)};
     }
-    float qjl_scale() const noexcept { return qjl_scale_; }
+    float      qjl_scale() const noexcept { return qjl_scale_; }
     const MSE& mse() const noexcept { return mse_; }
 
  private:
@@ -119,4 +111,4 @@ extern template class TurboQuantProd<2, arch::Scalar>;
 extern template class TurboQuantProd<3, arch::Scalar>;
 extern template class TurboQuantProd<4, arch::Scalar>;
 
-} // namespace tq
+}  // namespace tq

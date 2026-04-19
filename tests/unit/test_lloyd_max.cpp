@@ -10,11 +10,10 @@
 
 #include "turboquant/codebook.hpp"
 
-using Catch::Matchers::WithinRel;
 using Catch::Matchers::WithinAbs;
+using Catch::Matchers::WithinRel;
 
-TEST_CASE("Lloyd-Max reproduces d=128, bits=3 within tolerance",
-          "[codebook][lloyd_max][.slow]") {
+TEST_CASE("Lloyd-Max reproduces d=128, bits=3 within tolerance", "[codebook][lloyd_max][.slow]") {
     auto& reg = tq::CodebookRegistry::instance();
 
     auto ref = reg.find_embedded(128, 3);
@@ -27,8 +26,8 @@ TEST_CASE("Lloyd-Max reproduces d=128, bits=3 within tolerance",
     // the output.
     tq::LloydMaxOpts opts;
     opts.n_quadrature = 20000;
-    opts.max_iter = 200;
-    opts.tol = 1e-12;
+    opts.max_iter     = 200;
+    opts.tol          = 1e-12;
 
     // Recompute at (d=96, bits=3) — not bundled. Check basic properties.
     auto cb = reg.compute(96, 3, opts);
@@ -55,5 +54,5 @@ TEST_CASE("Lloyd-Max reproduces d=128, bits=3 within tolerance",
     REQUIRE(cb2.has_value());
     REQUIRE(cb4.has_value());
     REQUIRE(cb2->mse_per_coord > cb->mse_per_coord);
-    REQUIRE(cb->mse_per_coord  > cb4->mse_per_coord);
+    REQUIRE(cb->mse_per_coord > cb4->mse_per_coord);
 }

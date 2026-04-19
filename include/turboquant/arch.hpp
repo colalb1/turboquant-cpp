@@ -8,7 +8,7 @@ namespace tq::arch {
 struct Neon {};
 struct Scalar {};
 
-} // namespace tq::arch
+}  // namespace tq::arch
 
 namespace tq {
 
@@ -22,4 +22,4 @@ using DefaultArch = arch::Neon;
 using DefaultArch = arch::Scalar;
 #endif
 
-} // namespace tq
+}  // namespace tq

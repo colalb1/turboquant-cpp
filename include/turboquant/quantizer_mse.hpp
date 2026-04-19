@@ -37,15 +37,15 @@ class TurboQuantMSE {
  public:
     using Pack = PackPolicy<Bits>;
 
-    TurboQuantMSE() = default;
-    TurboQuantMSE(const TurboQuantMSE&)            = delete;
-    TurboQuantMSE& operator=(const TurboQuantMSE&) = delete;
-    TurboQuantMSE(TurboQuantMSE&&) noexcept        = default;
+    TurboQuantMSE()                                    = default;
+    TurboQuantMSE(const TurboQuantMSE&)                = delete;
+    TurboQuantMSE& operator=(const TurboQuantMSE&)     = delete;
+    TurboQuantMSE(TurboQuantMSE&&) noexcept            = default;
     TurboQuantMSE& operator=(TurboQuantMSE&&) noexcept = default;
 
     // Factory: builds rotation + fetches codebook.
-    [[nodiscard]] TQ_API static Result<TurboQuantMSE>
-    make(std::size_t dim, std::uint32_t seed) noexcept;
+    [[nodiscard]] TQ_API static Result<TurboQuantMSE> make(std::size_t   dim,
+                                                           std::uint32_t seed) noexcept;
 
     // Factory from an externally supplied rotation matrix (parity fixtures).
     [[nodiscard]] TQ_API static Result<TurboQuantMSE>
@@ -55,24 +55,20 @@ class TurboQuantMSE {
     //   x            : batch * dim floats
     //   indices_out  : batch * packed_bytes(dim) uint8
     //   norms_out    : batch floats
-    [[nodiscard]] TQ_API Error
-    quantize(std::span<const float> x,
-             std::size_t             batch,
-             std::span<std::uint8_t> indices_out,
-             std::span<float>        norms_out) const noexcept;
+    [[nodiscard]] TQ_API Error quantize(std::span<const float> x, std::size_t batch,
+                                        std::span<std::uint8_t> indices_out,
+                                        std::span<float>        norms_out) const noexcept;
 
     // Dequantize back to `batch` row-major vectors.
-    [[nodiscard]] TQ_API Error
-    dequantize(std::span<const std::uint8_t> indices,
-               std::span<const float>        norms,
-               std::size_t                   batch,
-               std::span<float>              x_out) const noexcept;
+    [[nodiscard]] TQ_API Error dequantize(std::span<const std::uint8_t> indices,
+                                          std::span<const float> norms, std::size_t batch,
+                                          std::span<float> x_out) const noexcept;
 
     static constexpr std::size_t packed_bytes(std::size_t d) noexcept {
         return Pack::packed_bytes(d);
     }
 
-    std::size_t dim()  const noexcept { return dim_; }
+    std::size_t dim() const noexcept { return dim_; }
     int         bits() const noexcept { return Bits; }
 
     // Access to underlying rotation (used by Prod quantizer, tests).
@@ -96,4 +92,4 @@ extern template class TurboQuantMSE<2, arch::Scalar>;
 extern template class TurboQuantMSE<3, arch::Scalar>;
 extern template class TurboQuantMSE<4, arch::Scalar>;
 
-} // namespace tq
+}  // namespace tq

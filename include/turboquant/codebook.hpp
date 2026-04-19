@@ -20,17 +20,17 @@ namespace tq {
 struct CodebookView {
     std::span<const float> centroids;            // size = 2^bits
     std::span<const float> decision_boundaries;  // size = 2^bits - 1
-    std::uint32_t dim       = 0;
-    std::uint32_t bits      = 0;
-    float         mse_per_coord = 0.0f;
-    float         mse_total     = 0.0f;
+    std::uint32_t          dim           = 0;
+    std::uint32_t          bits          = 0;
+    float                  mse_per_coord = 0.0f;
+    float                  mse_total     = 0.0f;
 };
 
 // Options for Lloyd-Max codebook computation (used by compute()).
 struct LloydMaxOpts {
     int    max_iter     = 200;
     double tol          = 1e-12;
-    int    n_quadrature = 10000;   // fixed-grid trapezoidal points
+    int    n_quadrature = 10000;  // fixed-grid trapezoidal points
 };
 
 // Registry / cache of loaded codebooks. Thread-safe singleton.
@@ -45,28 +45,25 @@ class TQ_API CodebookRegistry {
     static CodebookRegistry& instance() noexcept;
 
     // Get-or-compute. Returns a view valid for the lifetime of the process.
-    [[nodiscard]] Result<CodebookView>
-    get(std::uint32_t dim, std::uint32_t bits) noexcept;
+    [[nodiscard]] Result<CodebookView> get(std::uint32_t dim, std::uint32_t bits) noexcept;
 
     // Explicit compute — used by tests and for pre-warming. Writes the
     // result into the cache keyed by (dim, bits). If the key is already
     // cached, returns the cached view.
-    [[nodiscard]] Result<CodebookView>
-    compute(std::uint32_t dim, std::uint32_t bits,
-            const LloydMaxOpts& opts = {}) noexcept;
+    [[nodiscard]] Result<CodebookView> compute(std::uint32_t dim, std::uint32_t bits,
+                                               const LloydMaxOpts& opts = {}) noexcept;
 
     // Load from a JSON file on disk. Caches the result.
-    [[nodiscard]] Result<CodebookView>
-    load_json(std::string_view path) noexcept;
+    [[nodiscard]] Result<CodebookView> load_json(std::string_view path) noexcept;
 
     // Lookup an embedded codebook (compiled-in from bundled JSONs).
     // Returns CodebookMissing if not embedded. Does NOT mutate the cache.
-    [[nodiscard]] Result<CodebookView>
-    find_embedded(std::uint32_t dim, std::uint32_t bits) noexcept;
+    [[nodiscard]] Result<CodebookView> find_embedded(std::uint32_t dim,
+                                                     std::uint32_t bits) noexcept;
 
  private:
-    CodebookRegistry()  = default;
-    ~CodebookRegistry() = default;
+    CodebookRegistry()                                   = default;
+    ~CodebookRegistry()                                  = default;
     CodebookRegistry(const CodebookRegistry&)            = delete;
     CodebookRegistry& operator=(const CodebookRegistry&) = delete;
 
@@ -94,4 +91,4 @@ struct CodebookBlob {
 // Provided by codebook_embedded.cpp (generated at configure time).
 std::span<const CodebookBlob> embedded_codebooks() noexcept;
 
-} // namespace tq
+}  // namespace tq
