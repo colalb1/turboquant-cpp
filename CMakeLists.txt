@@ -63,7 +63,7 @@ endif()
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 set(TURBOQUANT_CODEBOOK_SRC_DIR
-    "${CMAKE_SOURCE_DIR}/turboquant python implementation/turboquant/codebooks"
+    "${CMAKE_SOURCE_DIR}/codebooks"
     CACHE PATH "Directory of bundled TurboQuant codebook JSONs")
 set(TURBOQUANT_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
 set(TURBOQUANT_EMBEDDED_CODEBOOKS "${TURBOQUANT_GENERATED_DIR}/codebook_embedded.cpp")
