@@ -1,6 +1,6 @@
 # turboquant-cpp
 
-A C++20 port of the **TurboQuant** quantization algorithm (ICLR 2026, [arXiv:2504.19874](https://arxiv.org/abs/2504.19874)), targeting Apple Silicon (ARM64) and exposed to inference pipelines as **ONNX Runtime custom operators**.
+A C++23 port of the **TurboQuant** quantization algorithm (ICLR 2026, [arXiv:2504.19874](https://arxiv.org/abs/2504.19874)), targeting Apple Silicon (ARM64) and exposed to inference pipelines as **ONNX Runtime custom operators**.
 
 TurboQuant is a learned-codebook quantizer that compresses float vectors (e.g. LLM key/value tensors) into 2–4 bits per coordinate with provable error and inner-product bounds. This repository reimplements the reference PyTorch pipeline in C++ with NEON SIMD, Apple Accelerate for BLAS/LAPACK, and a shared-library entry point (`libturboquant_onnx.dylib`) that plugs directly into any ONNX Runtime session.
 
@@ -25,8 +25,8 @@ Everything is FP32 end-to-end — this is the reference port, not an fp16/bf16 f
 
 ## Requirements
 
-- **macOS on Apple Silicon** (M1 or later). The build warns on other hosts and falls back to scalar kernels, but this is not a supported configuration.
-- **Apple Clang 15+** (ships with Xcode 15) or LLVM Clang $\geq$ 16. C++20 required.
+- **macOS on Apple Silicon** (M1 or later). CMake configure fails (`FATAL_ERROR`) on any other host — the code depends unconditionally on Accelerate (cblas_sgemm, vDSP, vvexpf) and NEON intrinsics.
+- **Apple Clang 16+** (ships with Xcode 16) or LLVM Clang $\geq$ 17. C++23 required — the project uses `std::expected` from `<expected>` with no fallback.
 - **CMake 3.24+**, **Ninja** (recommended), and **Python 3** (build-time only, for `tools/codebooks_to_cpp.py` which generates the embedded codebook translation unit).
 - Everything else — nlohmann/json, Catch2 v3, Google Benchmark, ONNX Runtime 1.17 — is fetched by CMake's `FetchContent`. No system packages to install.
 
